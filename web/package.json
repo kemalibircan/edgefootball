@@ -1,0 +1,22 @@
+{
+  "name": "football-admin-panel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 3001",
+    "build": "vite build",
+    "preview": "vite preview --port 3001"
+  },
+  "dependencies": {
+    "@fortawesome/fontawesome-free": "5.15.4",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-markdown": "^9.0.1",
+    "remark-gfm": "^4.0.0",
+    "react-router-dom": "^6.28.0"
+  },
+  "devDependencies": {
+    "vite": "5.1.6"
+  }
+}

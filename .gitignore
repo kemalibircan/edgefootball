@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.env
+.env.local
+.venv/
+*.egg-info/
+.cache/
+artifacts/
+.parquet/
+logs/
+.DS_Store
+web/node_modules/
+web/dist/
+mobil/node_modules/
+mobil/ios/Pods/
+mobil/android/.gradle/
+mobil/build/
