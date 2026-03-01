@@ -1,13 +1,15 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {Alert, ScrollView, Text, TextInput, View} from 'react-native';
+import {useNavigation} from '@react-navigation/native';
 import {useMutation, useQuery} from '@tanstack/react-query';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {useAuthStore} from '../../store/authStore';
 import {ScreenContainer} from '../../components/common/ScreenContainer';
 import {GradientButton} from '../../components/common/GradientButton';
 import {CouponTaskProgress} from '../../components/coupon/CouponTaskProgress';
 import {CouponCard} from '../../components/coupon/CouponCard';
 import {useCouponApi} from '../../hooks/useCouponApi';
-import type {RiskCoupon, CouponTaskInfo} from '../../types/api';
+import type {CouponTaskInfo, RiskCoupon} from '../../types/api';
 import {useCouponStore, calculateTotalOdds} from '../../store/couponStore';
 import {DEFAULT_COUPON_LEAGUES} from '../../constants/leagues';
 import {messageFromUnknown} from '../../utils/error';
@@ -20,27 +22,24 @@ import {toSavedCouponItems} from '../../lib/adapters/couponAdapters';
 import {getBottomContentInset, TAB_BAR_HEIGHT} from '../../lib/layout/insets';
 import type {DockState} from '../../lib/layout/insets';
 import {useAiChat} from '../../state/chat/AiChatContext';
-
-const RISK_SECTIONS = [
-  {key: 'low', title: 'Dusuk Riskli Kupon'},
-  {key: 'medium', title: 'Orta Riskli Kupon'},
-  {key: 'high', title: 'Cok Riskli Kupon'},
-] as const;
-
-type RiskKey = (typeof RISK_SECTIONS)[number]['key'];
+import {RISK_SECTIONS, createEmptyRiskCoupons, type RiskKey} from '../../lib/coupon/riskSections';
 
 export function CouponsScreen() {
+  const navigation = useNavigation();
+  const isAuthenticated = useAuthStore(state => state.isAuthenticated);
   const couponApi = useCouponApi();
   const {askFromAction} = useAiChat();
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigation.navigate('HomeTab' as never, { screen: 'Login' } as never);
+    }
+  }, [isAuthenticated, navigation]);
   const [daysWindow, setDaysWindow] = useState('3');
   const [matchesPerCoupon, setMatchesPerCoupon] = useState('3');
   const [taskId, setTaskId] = useState('');
   const [taskSnapshot, setTaskSnapshot] = useState<CouponTaskInfo | null>(null);
-  const [coupons, setCoupons] = useState<Record<RiskKey, RiskCoupon | undefined>>({
-    low: undefined,
-    medium: undefined,
-    high: undefined,
-  });
+  const [coupons, setCoupons] = useState<Record<RiskKey, RiskCoupon | undefined>>(createEmptyRiskCoupons());
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [dockState, setDockState] = useState<DockState>('collapsed');
@@ -64,6 +63,9 @@ export function CouponsScreen() {
         model_id: null,
         include_math_coupons: false,
       }),
+    onMutate() {
+      setCoupons(createEmptyRiskCoupons());
+    },
     onSuccess(data) {
       setTaskId(data.task_id);
       setTaskSnapshot({
@@ -227,11 +229,7 @@ export function CouponsScreen() {
           </View>
 
           {taskSnapshot ? (
-            <CouponTaskProgress
-              progress={taskSnapshot.progress}
-              stage={taskSnapshot.stage}
-              state={taskSnapshot.state}
-            />
+            <CouponTaskProgress progress={taskSnapshot.progress} stage={taskSnapshot.stage} state={taskSnapshot.state} />
           ) : null}
 
           {error ? <StatusBanner message={error} tone="error" /> : null}
@@ -302,7 +300,7 @@ export function CouponsScreen() {
                     return;
                   }
                   const added = addPicks(coupon.matches);
-                  setMessage(`${added} mac kupona eklendi.`);
+                  setMessage(added > 0 ? `${added} mac kupona eklendi.` : 'Kupondaki maclar zaten kuponunda var.');
                 }}
                 onSave={() => saveMutation.mutate({riskKey: section.key, riskTitle: section.title})}
                 onAskAi={async match => {
@@ -337,6 +335,7 @@ export function CouponsScreen() {
               />
             ))}
           </View>
+
         </ScrollView>
       </View>
 

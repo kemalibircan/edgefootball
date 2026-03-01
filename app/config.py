@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     sportmonks_api_token: Optional[str] = None
     openai_api_key: Optional[str] = None
     openai_model: str = "gpt-5"
+    dalle_model: str = "dall-e-3"
+    daily_generation_enabled: bool = True
     db_url: str = "postgresql://football:football@localhost:5432/football"
     redis_url: str = "redis://localhost:6379/0"
     dummy_mode: bool = False
@@ -91,6 +93,12 @@ class Settings(BaseSettings):
     training_enable_live_stats_by_default: bool = False
     training_walk_forward_splits: int = 4
     training_odds_blend_grid_step: float = 0.05
+
+    # SEO / public URL settings
+    site_base_url: str = "http://localhost:3001"
+    seo_default_locale: str = "tr"
+    seo_sitemap_cache_ttl_seconds: int = 900
+    blog_auto_seed: bool = True
 
 
 @lru_cache

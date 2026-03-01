@@ -33,7 +33,7 @@ export function AuthShell({
   showLogo = true,
   enterDelay = 0,
   contentAlignment = 'top',
-  includeTopSafeArea = false,
+  includeTopSafeArea = true,
 }: Props) {
 
   return (
@@ -55,11 +55,13 @@ export function AuthShell({
               flexGrow: 1,
               justifyContent: contentAlignment === 'center' ? 'center' : 'flex-start',
               paddingHorizontal: 20,
-              paddingTop: contentAlignment === 'center' ? 24 : 12,
+              paddingTop: contentAlignment === 'center' ? 32 : 20,
               paddingBottom: 24,
               gap: 16,
             }}>
-            <Animated.View entering={FadeInDown.delay(enterDelay).duration(420)} style={{alignItems: 'center', gap: 10}}>
+            <Animated.View
+              entering={FadeInDown.delay(enterDelay).duration(420)}
+              style={{alignItems: 'center', gap: 10, marginTop: 8}}>
               {showLogo ? (
                 <Animated.Image
                   source={APP_LOGO}

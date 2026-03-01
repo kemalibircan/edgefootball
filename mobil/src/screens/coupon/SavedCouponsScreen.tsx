@@ -1,7 +1,9 @@
-import React, {useState, useMemo} from 'react';
+import React, {useState, useMemo, useEffect} from 'react';
 import {Alert, FlatList, RefreshControl, Text, View, Pressable, TextInput} from 'react-native';
+import {useNavigation} from '@react-navigation/native';
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {useAuthStore} from '../../store/authStore';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {ScreenContainer} from '../../components/common/ScreenContainer';
 import {GradientButton} from '../../components/common/GradientButton';
@@ -17,8 +19,16 @@ import type {DockState} from '../../lib/layout/insets';
 import {beginCouponRename, cancelCouponRename, normalizeCouponRenameName} from '../../lib/coupon/renameHelpers';
 
 export function SavedCouponsScreen() {
+  const navigation = useNavigation();
+  const isAuthenticated = useAuthStore(state => state.isAuthenticated);
   const couponApi = useCouponApi();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigation.navigate('HomeTab' as never, { screen: 'Login' } as never);
+    }
+  }, [isAuthenticated, navigation]);
   const [mode, setMode] = useState<'active' | 'archived'>('active');
   const [searchQuery, setSearchQuery] = useState('');
   const [riskFilter, setRiskFilter] = useState<string>('all');

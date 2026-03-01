@@ -1,0 +1,50 @@
+.chat-typing-indicator {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  animation: fade-in 0.3s ease;
+}
+
+.chat-typing-bubble {
+  display: flex;
+  gap: 6px;
+  padding: 12px 16px;
+  background: var(--bg-navy-light);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  border-bottom-left-radius: 4px;
+}
+
+.chat-typing-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--accent-lime);
+  border-radius: 50%;
+  animation: typing-bounce 1.4s ease-in-out infinite;
+}
+
+.chat-typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.chat-typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+.chat-typing-text {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 0 8px;
+}
+
+@keyframes typing-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.7;
+  }
+  30% {
+    transform: translateY(-10px);
+    opacity: 1;
+  }
+}

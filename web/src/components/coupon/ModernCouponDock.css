@@ -1,0 +1,458 @@
+.modern-coupon-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(3, 19, 47, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 998;
+  animation: fade-in 0.2s ease;
+}
+
+.modern-coupon-dock {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 999;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.modern-coupon-toggle {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--accent-lime);
+  border: 2px solid var(--accent-lime-bright);
+  color: var(--text-inverse);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px var(--accent-lime-glow), var(--shadow-lg);
+}
+
+.modern-coupon-toggle:hover {
+  transform: scale(1.1) rotate(5deg);
+  box-shadow: 0 6px 30px var(--accent-lime-glow), var(--shadow-xl);
+}
+
+.modern-coupon-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  background: var(--danger);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.modern-coupon-panel {
+  width: 380px;
+  max-height: 600px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  backdrop-filter: blur(20px);
+  box-shadow: var(--shadow-xl);
+  display: flex;
+  flex-direction: column;
+  animation: slide-in-up 0.3s ease;
+}
+
+@keyframes slide-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modern-coupon-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.modern-coupon-header-title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.modern-coupon-header-title h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.modern-coupon-count {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.modern-coupon-close {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: unset;
+}
+
+.modern-coupon-close:hover {
+  background: var(--glass-hover);
+  border-color: var(--accent-lime);
+  color: var(--accent-lime);
+  transform: rotate(90deg);
+}
+
+.modern-coupon-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  max-height: 500px;
+}
+
+.modern-coupon-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.modern-coupon-empty svg {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+.modern-coupon-empty p {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.modern-coupon-empty span {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.modern-coupon-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modern-coupon-item {
+  background: var(--bg-navy-light);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 12px;
+  transition: all 0.2s ease;
+}
+
+.modern-coupon-item:hover {
+  border-color: var(--accent-lime-soft);
+  box-shadow: 0 2px 12px var(--accent-lime-glow);
+}
+
+.modern-coupon-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.modern-coupon-item-teams {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modern-coupon-item-vs {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.modern-coupon-item-remove {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: unset;
+}
+
+.modern-coupon-item-remove:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: white;
+  transform: scale(1.1);
+}
+
+.modern-coupon-item-match {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modern-coupon-item-selection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.modern-coupon-item-pick {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.modern-coupon-item-odd {
+  padding: 4px 10px;
+  background: var(--accent-lime);
+  color: var(--text-inverse);
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 6px;
+}
+
+.modern-coupon-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--glass-border);
+}
+
+.modern-coupon-control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modern-coupon-control label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.modern-coupon-select {
+  padding: 8px 12px;
+  background: var(--bg-navy-light);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+  min-height: unset;
+}
+
+.modern-coupon-select:hover {
+  border-color: var(--accent-lime-soft);
+}
+
+.modern-coupon-select:focus {
+  outline: none;
+  border-color: var(--accent-lime);
+  box-shadow: 0 0 0 2px var(--accent-lime-glow);
+}
+
+.modern-coupon-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  background: var(--bg-navy-lighter);
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+}
+
+.modern-coupon-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.modern-coupon-summary-row span {
+  color: var(--text-secondary);
+}
+
+.modern-coupon-summary-row strong {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.modern-coupon-summary-row.highlight {
+  padding-top: 10px;
+  border-top: 1px solid var(--glass-border);
+  margin-top: 4px;
+}
+
+.modern-coupon-odds-value {
+  color: var(--accent-lime) !important;
+  font-size: 16px;
+}
+
+.modern-coupon-win-value {
+  color: var(--accent-lime) !important;
+  font-size: 16px;
+}
+
+.modern-coupon-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.modern-coupon-save,
+.modern-coupon-clear {
+  flex: 1;
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.modern-coupon-save {
+  background: var(--accent-lime);
+  border-color: var(--accent-lime);
+  color: var(--text-inverse);
+}
+
+.modern-coupon-save:hover:not(:disabled) {
+  background: var(--accent-lime-bright);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px var(--accent-lime-glow);
+}
+
+.modern-coupon-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.modern-coupon-clear {
+  background: transparent;
+  border-color: var(--glass-border);
+  color: var(--text-secondary);
+}
+
+.modern-coupon-clear:hover {
+  background: var(--glass-hover);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .modern-coupon-dock {
+    bottom: 16px;
+    right: 16px;
+  }
+
+  .modern-coupon-panel {
+    width: calc(100vw - 32px);
+    max-width: 380px;
+    max-height: 70vh;
+  }
+}
+
+@media (max-width: 480px) {
+  .modern-coupon-dock {
+    bottom: 0;
+    right: 0;
+    left: 0;
+  }
+
+  .modern-coupon-dock.open {
+    bottom: 0;
+  }
+
+  .modern-coupon-toggle {
+    position: fixed;
+    bottom: 80px;
+    right: 16px;
+  }
+
+  .modern-coupon-panel {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 16px 16px 0 0;
+    max-height: 80vh;
+  }
+
+  .modern-coupon-actions {
+    flex-direction: column;
+  }
+
+  .modern-coupon-save,
+  .modern-coupon-clear {
+    width: 100%;
+  }
+}
+
+/* Scrollbar styling */
+.modern-coupon-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modern-coupon-content::-webkit-scrollbar-track {
+  background: var(--bg-navy-deep);
+  border-radius: 3px;
+}
+
+.modern-coupon-content::-webkit-scrollbar-thumb {
+  background: var(--accent-lime-soft);
+  border-radius: 3px;
+}
+
+.modern-coupon-content::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-lime);
+}

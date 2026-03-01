@@ -66,6 +66,18 @@ LOW_SAFETY_LEVELS = (
     {"odd_min": 1.10, "odd_max": 2.40, "prob_min": 0.42, "edge_min": -1.00},
 )
 
+MEDIUM_SAFETY_LEVELS = (
+    {"odd_min": 1.35, "odd_max": 3.60, "prob_min": 0.35, "edge_min": -0.03},
+    {"odd_min": 1.25, "odd_max": 4.20, "prob_min": 0.32, "edge_min": -0.08},
+    {"odd_min": 1.15, "odd_max": 4.80, "prob_min": 0.30, "edge_min": -0.15},
+)
+
+HIGH_SAFETY_LEVELS = (
+    {"odd_min": 1.80, "odd_max": 7.50, "prob_min": 0.24, "edge_min": -0.10},
+    {"odd_min": 1.60, "odd_max": 9.50, "prob_min": 0.20, "edge_min": -0.20},
+    {"odd_min": 1.45, "odd_max": 12.00, "prob_min": 0.16, "edge_min": -0.35},
+)
+
 MATH_SINGLE_RANGE = (1.35, 1.65)
 MATH_DOUBLE_RANGE = (1.90, 2.40)
 MATH_MIX_SINGLE_RANGE = (1.35, 1.60)
@@ -782,30 +794,59 @@ def _select_coupon_for_profile(
     picks = filtered[: max(MIN_COUPON_MATCHES, int(matches_per_coupon))]
     picks = picks[: int(matches_per_coupon)]
 
-    if len(picks) < MIN_COUPON_MATCHES and profile_name == "low":
+    if len(picks) < MIN_COUPON_MATCHES:
         safety_filtered: list[dict] = []
-        for idx, level in enumerate(LOW_SAFETY_LEVELS):
-            safety_filtered = [
+        safety_levels: tuple[dict[str, float], ...] = ()
+        if profile_name == "low":
+            safety_levels = LOW_SAFETY_LEVELS
+        elif profile_name == "medium":
+            safety_levels = MEDIUM_SAFETY_LEVELS
+        elif profile_name == "high":
+            safety_levels = HIGH_SAFETY_LEVELS
+
+        for idx, level in enumerate(safety_levels):
+            level_filtered = [
                 item
                 for item in candidates
                 if int(item["fixture_id"]) not in used_fixture_ids
                 and float(level["odd_min"]) <= float(item["odd"]) <= float(level["odd_max"])
                 and float(item["model_prob"]) >= float(level["prob_min"])
                 and float(item["edge"]) >= float(level["edge_min"])
-                and _selection_is_market_favorite_or_close(
-                    item.get("market_match_result"),
-                    str(item.get("selection") or ""),
-                    tolerance=0.12,
-                )
             ]
-            safety_candidate_count = len(safety_filtered)
-            if safety_candidate_count >= MIN_COUPON_MATCHES:
-                safety_level_used = idx
+            if profile_name == "low":
+                level_filtered = [
+                    item
+                    for item in level_filtered
+                    if _selection_is_market_favorite_or_close(
+                        item.get("market_match_result"),
+                        str(item.get("selection") or ""),
+                        tolerance=0.12,
+                    )
+                ]
+
+            safety_candidate_count = len(level_filtered)
+            if safety_candidate_count < MIN_COUPON_MATCHES:
+                continue
+
+            safety_filtered = level_filtered
+            safety_level_used = idx
+            if profile_name == "low":
                 selection_policy = "safety_fallback"
                 warnings.append("Dusuk risk kuponu guvenli fallback ile tamamlandi.")
-                break
+            elif profile_name == "medium":
+                selection_policy = "risk_relax_fallback"
+                warnings.append("Orta risk kuponu fallback ile tamamlandi.")
+            elif profile_name == "high":
+                selection_policy = "risk_relax_fallback"
+                warnings.append("Cok risk kuponu fallback ile tamamlandi.")
+            break
+
         if selection_policy == "safety_fallback":
             safety_filtered.sort(key=_low_safety_sort_key)
+            picks = safety_filtered[: max(MIN_COUPON_MATCHES, int(matches_per_coupon))]
+            picks = picks[: int(matches_per_coupon)]
+        elif selection_policy == "risk_relax_fallback":
+            safety_filtered.sort(key=lambda item: _candidate_sort_key(profile_name, item))
             picks = safety_filtered[: max(MIN_COUPON_MATCHES, int(matches_per_coupon))]
             picks = picks[: int(matches_per_coupon)]
 

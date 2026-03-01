@@ -1,0 +1,505 @@
+/* Kuponlarim Page - Modern Design */
+
+/* Page Container */
+.kuponlarim-page {
+  padding: 40px 0;
+  min-height: 100vh;
+}
+
+/* Tab Navigation */
+.kuponlarim-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+.kuponlarim-tab {
+  padding: 0.75rem 1.5rem;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  color: var(--text-primary);
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.kuponlarim-tab:hover {
+  background: var(--glass-hover);
+  border-color: var(--accent-lime);
+  transform: translateY(-2px);
+}
+
+.kuponlarim-tab.active {
+  background: var(--accent-lime);
+  color: var(--bg-navy-deep);
+  border-color: var(--accent-lime);
+  box-shadow: 0 0 15px var(--accent-lime-glow);
+  font-weight: 600;
+}
+
+/* Error Message */
+.kuponlarim-error {
+  padding: 1rem;
+  background: var(--danger-soft);
+  border: 1px solid var(--danger);
+  border-radius: 12px;
+  color: var(--danger);
+  margin-bottom: 1.5rem;
+  font-weight: 500;
+  backdrop-filter: blur(10px);
+}
+
+/* Loading State */
+.kuponlarim-loading {
+  text-align: center;
+  padding: 3rem;
+  color: var(--text-secondary);
+  font-size: 1rem;
+}
+
+/* Empty State */
+.kuponlarim-empty {
+  text-align: center;
+  padding: 4rem 2rem;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  backdrop-filter: blur(20px);
+  color: var(--text-secondary);
+}
+
+.kuponlarim-empty svg {
+  color: var(--accent-lime);
+  margin-bottom: 1rem;
+  opacity: 0.6;
+}
+
+.kuponlarim-empty p {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+/* Coupons Grid */
+.kuponlarim-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Coupon Card */
+.kuponlarim-card {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(20px);
+}
+
+.kuponlarim-card:hover {
+  background: var(--glass-hover);
+  border-color: var(--accent-lime-glow);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md), var(--shadow-neon);
+}
+
+/* Coupon Header */
+.kuponlarim-card-header {
+  padding: 1.25rem;
+  background: var(--bg-navy-light);
+  border-bottom: 1px solid var(--glass-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.kuponlarim-card-title-section {
+  flex: 1;
+  min-width: 200px;
+}
+
+.kuponlarim-card-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 0.5rem 0;
+  font-family: "Space Grotesk", sans-serif;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.kuponlarim-risk-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  background: var(--accent-lime-glow);
+  border: 1px solid var(--accent-lime);
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent-lime);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.kuponlarim-card-meta {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.kuponlarim-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.kuponlarim-meta-item strong {
+  color: var(--accent-lime);
+  font-weight: 600;
+}
+
+.kuponlarim-card-date {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+}
+
+/* Rename Form */
+.kuponlarim-rename-form {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.kuponlarim-rename-input {
+  flex: 1;
+  min-width: 200px;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  color: var(--text-primary);
+  border-radius: 12px;
+  font-size: 0.95rem;
+  transition: all 0.3s ease;
+}
+
+.kuponlarim-rename-input:focus {
+  outline: none;
+  border-color: var(--accent-lime);
+  box-shadow: 0 0 10px var(--accent-lime-glow);
+}
+
+.kuponlarim-rename-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* Coupon Body */
+.kuponlarim-card-body {
+  padding: 1.25rem;
+}
+
+/* Matches Section */
+.kuponlarim-matches-section {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--glass-border);
+}
+
+.kuponlarim-matches-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 1rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.kuponlarim-matches-title svg {
+  color: var(--accent-lime);
+}
+
+.kuponlarim-matches-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* Match Item Card */
+.kuponlarim-match-item {
+  padding: 1rem;
+  background: var(--bg-navy-light);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.kuponlarim-match-item:hover {
+  border-color: var(--accent-lime-soft);
+  box-shadow: 0 2px 12px var(--accent-lime-glow);
+  transform: translateX(4px);
+}
+
+.kuponlarim-match-teams {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.kuponlarim-team {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.kuponlarim-team-logo {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.kuponlarim-team-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.kuponlarim-vs {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.kuponlarim-match-info {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+}
+
+.kuponlarim-match-info-item {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.kuponlarim-match-details {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--glass-border);
+  flex-wrap: wrap;
+}
+
+.kuponlarim-match-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.kuponlarim-match-detail-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.kuponlarim-match-detail-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.kuponlarim-match-odd {
+  color: var(--accent-lime);
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.kuponlarim-match-market {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-left: 0.5rem;
+}
+
+/* Coupon Actions */
+.kuponlarim-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: var(--bg-navy-light);
+  border-top: 1px solid var(--glass-border);
+  flex-wrap: wrap;
+}
+
+.kuponlarim-action-btn {
+  flex: 1;
+  min-width: 100px;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  color: var(--text-primary);
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.kuponlarim-action-btn:hover:not(:disabled) {
+  background: var(--glass-hover);
+  border-color: var(--accent-lime);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--accent-lime-glow);
+}
+
+.kuponlarim-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.kuponlarim-action-btn.primary {
+  background: var(--accent-lime);
+  color: var(--bg-navy-deep);
+  border-color: var(--accent-lime);
+  font-weight: 600;
+}
+
+.kuponlarim-action-btn.primary:hover:not(:disabled) {
+  background: var(--accent-lime-bright);
+  box-shadow: 0 4px 16px var(--accent-lime-glow);
+}
+
+.kuponlarim-action-btn.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.kuponlarim-action-btn.danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+}
+
+/* Delete Confirmation */
+.kuponlarim-delete-confirm {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.kuponlarim-delete-text {
+  font-size: 0.9rem;
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .kuponlarim-page {
+    padding: 24px 0;
+  }
+
+  .kuponlarim-card-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .kuponlarim-card-title {
+    font-size: 1.1rem;
+  }
+
+  .kuponlarim-card-meta {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .kuponlarim-match-teams {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .kuponlarim-match-details {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .kuponlarim-card-actions {
+    flex-direction: column;
+  }
+
+  .kuponlarim-action-btn {
+    width: 100%;
+  }
+
+  .kuponlarim-rename-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .kuponlarim-rename-input {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .kuponlarim-tabs {
+    flex-direction: column;
+  }
+
+  .kuponlarim-tab {
+    width: 100%;
+    text-align: center;
+  }
+
+  .kuponlarim-card-title {
+    font-size: 1rem;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .kuponlarim-match-info {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}
+
+/* Animation */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.kuponlarim-card {
+  animation: fade-in 0.3s ease-out;
+}

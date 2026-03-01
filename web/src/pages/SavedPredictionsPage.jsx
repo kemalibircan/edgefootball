@@ -1,14 +1,33 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Navigate } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Navigate, useNavigate } from "react-router-dom";
 import ActionButton from "../components/dashboard/ActionButton";
-import { apiRequest } from "../lib/api";
+import { 
+  getPredictionsList, 
+  getPredictionStats, 
+  refreshPrediction, 
+  deletePrediction,
+  bulkRefreshPredictions 
+} from "../lib/api";
 import { readAuthToken } from "../lib/auth";
-import { uiText } from "../i18n/terms.tr";
-
-const SUPER_LIG_ID = 600;
+import { useLanguage } from "../contexts/LanguageContext";
+import "./SavedPredictionsPage.css";
 
 function todayLocalISODate() {
   const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000);
+  return local.toISOString().slice(0, 10);
+}
+
+function yesterdayLocalISODate() {
+  const now = new Date();
+  now.setDate(now.getDate() - 1);
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000);
+  return local.toISOString().slice(0, 10);
+}
+
+function lastWeekLocalISODate() {
+  const now = new Date();
+  now.setDate(now.getDate() - 7);
   const local = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000);
   return local.toISOString().slice(0, 10);
 }
@@ -26,93 +45,162 @@ function asPercent(value) {
   return `%${(num * 100).toFixed(1)}`;
 }
 
-function outcomeLabel(value) {
-  if (value === "home_win") return "Ev";
-  if (value === "away_win") return "Deplasman";
-  if (value === "draw") return "Beraberlik";
+function outcomeLabel(value, t) {
+  if (value === "home_win") return t.savedPredictions.stats.homeWin;
+  if (value === "away_win") return t.savedPredictions.stats.awayWin;
+  if (value === "draw") return t.savedPredictions.stats.draw;
   return "-";
 }
 
 export default function SavedPredictionsPage() {
-  const [savedPredictionsDay, setSavedPredictionsDay] = useState(todayLocalISODate());
-  const [savedPredictions, setSavedPredictions] = useState({
-    day: "",
-    page: 1,
-    page_size: 20,
-    total: 0,
-    total_pages: 1,
+  const { t, locale } = useLanguage();
+  const navigate = useNavigate();
+  
+  // Filter state
+  const [quickFilter, setQuickFilter] = useState("lastWeek");
+  const [dateFrom, setDateFrom] = useState(lastWeekLocalISODate());
+  const [dateTo, setDateTo] = useState(todayLocalISODate());
+  const [archive, setArchive] = useState(false);
+  const [page, setPage] = useState(1);
+  
+  // Data state
+  const [predictions, setPredictions] = useState({
     items: [],
+    total: 0,
+    page: 1,
+    total_pages: 1,
   });
+  const [stats, setStats] = useState(null);
+  
+  // Loading state
   const [loadingKey, setLoadingKey] = useState("");
   const [error, setError] = useState("");
 
   const isLoading = (key) => loadingKey === key;
 
-  const loadDailyPredictions = async ({
-    day = savedPredictionsDay,
-    page = 1,
-    autoRefreshResults = false,
-    key = "list",
-  } = {}) => {
-    setLoadingKey(key);
+  // Load predictions
+  const loadPredictions = async (resetPage = false) => {
+    setLoadingKey("list");
     setError("");
+    
     try {
-      const params = new URLSearchParams();
-      params.set("day", day);
-      params.set("page", String(page));
-      params.set("page_size", "10");
-      params.set("league_id", String(SUPER_LIG_ID));
-      params.set("mine_only", "true");
-      if (autoRefreshResults) {
-        params.set("auto_refresh_results", "true");
-      }
-      const payload = await apiRequest(`/admin/predictions/daily?${params.toString()}`);
-      setSavedPredictions(payload || {});
-      setSavedPredictionsDay(day);
+      const targetPage = resetPage ? 1 : page;
+      const filters = {
+        dateFrom,
+        dateTo,
+        mineOnly: true,
+        archive,
+        page: targetPage,
+        pageSize: 10,
+      };
+      
+      console.log("[SavedPredictions] Loading with filters:", filters);
+      const result = await getPredictionsList(filters);
+      console.log("[SavedPredictions] API Response:", result);
+      
+      setPredictions(result || { items: [], total: 0, page: 1, total_pages: 1 });
+      if (resetPage) setPage(1);
     } catch (err) {
-      setError(err.message || uiText.savedPredictions.loadError);
+      console.error("[SavedPredictions] Load error:", err);
+      setError(err.message || t.savedPredictions.loadError);
     } finally {
       setLoadingKey("");
     }
   };
 
-  const refreshSavedPredictionResult = async (predictionId) => {
+  // Load statistics
+  const loadStats = async () => {
+    try {
+      const result = await getPredictionStats({
+        dateFrom,
+        dateTo,
+      });
+      setStats(result);
+    } catch (err) {
+      console.error("Failed to load stats:", err);
+    }
+  };
+
+  // Quick filter handlers
+  const applyQuickFilter = (filter) => {
+    setQuickFilter(filter);
+    const today = todayLocalISODate();
+    
+    switch (filter) {
+      case "today":
+        setDateFrom(today);
+        setDateTo(today);
+        break;
+      case "yesterday":
+        const yesterday = yesterdayLocalISODate();
+        setDateFrom(yesterday);
+        setDateTo(yesterday);
+        break;
+      case "lastWeek":
+        setDateFrom(lastWeekLocalISODate());
+        setDateTo(today);
+        break;
+      case "custom":
+        // Keep current dates
+        break;
+    }
+  };
+
+  // Refresh single prediction
+  const handleRefresh = async (predictionId) => {
     setLoadingKey(`refresh-${predictionId}`);
     setError("");
+    
     try {
-      await apiRequest(`/admin/predictions/${predictionId}/refresh-result`, {
-        method: "POST",
-      });
-      await loadDailyPredictions({
-        day: savedPredictionsDay,
-        page: savedPredictions.page || 1,
-        autoRefreshResults: false,
-        key: "list-after-refresh",
-      });
+      await refreshPrediction(predictionId);
+      await loadPredictions();
+      await loadStats();
     } catch (err) {
-      setError(err.message || "Kayit guncellenemedi.");
+      setError(err.message || t.savedPredictions.loadError);
+    } finally {
       setLoadingKey("");
     }
   };
 
-  useEffect(() => {
-    loadDailyPredictions({
-      day: savedPredictionsDay,
-      page: 1,
-      autoRefreshResults: false,
-      key: "initial",
-    });
-  }, []);
+  // Delete prediction
+  const handleDelete = async (predictionId) => {
+    if (!confirm(t.savedPredictions.actions.delete + "?")) return;
+    
+    setLoadingKey(`delete-${predictionId}`);
+    setError("");
+    
+    try {
+      await deletePrediction(predictionId);
+      await loadPredictions();
+      await loadStats();
+    } catch (err) {
+      setError(err.message || t.savedPredictions.loadError);
+    } finally {
+      setLoadingKey("");
+    }
+  };
 
-  const pageInfoText = useMemo(
-    () =>
-      uiText.savedPredictions.pagination.pageInfo(
-        savedPredictions.total || 0,
-        savedPredictions.page || 1,
-        savedPredictions.total_pages || 1
-      ),
-    [savedPredictions.page, savedPredictions.total, savedPredictions.total_pages]
-  );
+  // Bulk refresh
+  const handleBulkRefresh = async () => {
+    setLoadingKey("bulk-refresh");
+    setError("");
+    
+    try {
+      await bulkRefreshPredictions({ dateFrom, dateTo });
+      await loadPredictions();
+      await loadStats();
+    } catch (err) {
+      setError(err.message || t.savedPredictions.loadError);
+    } finally {
+      setLoadingKey("");
+    }
+  };
+
+  // Initial load
+  useEffect(() => {
+    loadPredictions(true);
+    loadStats();
+  }, [dateFrom, dateTo, archive]);
 
   if (!readAuthToken()) {
     return <Navigate to="/login" replace />;
@@ -121,142 +209,222 @@ export default function SavedPredictionsPage() {
   return (
     <div className="container">
       <section className="card wide">
-        <h2>{uiText.savedPredictions.title}</h2>
-        <p className="help-text">{uiText.savedPredictions.helpText}</p>
+        <h2>{t.savedPredictions.title}</h2>
+        <p className="help-text">{t.savedPredictions.helpText}</p>
 
-        {error ? <div className="error">{error}</div> : null}
+        {error && <div className="error">{error}</div>}
 
-        <div className="row wrap">
-          <input
-            type="date"
-            value={savedPredictionsDay}
-            onChange={(e) => setSavedPredictionsDay(e.target.value)}
-          />
-          <ActionButton
-            loading={isLoading("list") || isLoading("initial")}
-            loadingText={uiText.savedPredictions.loading.default}
-            onClick={() =>
-              loadDailyPredictions({
-                day: savedPredictionsDay,
-                page: 1,
-                autoRefreshResults: false,
-                key: "list",
-              })
-            }
-          >
-            {uiText.savedPredictions.filters.listForDay}
-          </ActionButton>
-          <ActionButton
-            className="secondary"
-            loading={isLoading("check")}
-            loadingText={uiText.savedPredictions.loading.checking}
-            onClick={() =>
-              loadDailyPredictions({
-                day: savedPredictionsDay,
-                page: savedPredictions.page || 1,
-                autoRefreshResults: true,
-                key: "check",
-              })
-            }
-          >
-            {uiText.savedPredictions.filters.checkResults}
-          </ActionButton>
-        </div>
-
-        <p className="small-text">{pageInfoText}</p>
-
-        {savedPredictions.items?.length ? (
-          <table>
-            <thead>
-              <tr>
-                <th>{uiText.savedPredictions.table.date}</th>
-                <th>{uiText.savedPredictions.table.match}</th>
-                <th>{uiText.savedPredictions.table.prediction1x2}</th>
-                <th>{uiText.savedPredictions.table.actualResult}</th>
-                <th>{uiText.savedPredictions.table.status}</th>
-                <th>{uiText.savedPredictions.table.action}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {savedPredictions.items.map((item) => (
-                <tr key={`saved-pred-${item.id}`}>
-                  <td>{formatDate(item.prediction_created_at)}</td>
-                  <td>
-                    {item.match_label || "-"}
-                    <div className="small-text">{item.model_name || item.model_id || "-"}</div>
-                    {item.note ? (
-                      <div className="small-text">
-                        {uiText.savedPredictions.table.notePrefix} {item.note}
-                      </div>
-                    ) : null}
-                  </td>
-                  <td>
-                    Ev {asPercent(item.predicted_home_win)} / Ber. {asPercent(item.predicted_draw)} / Dep.{" "}
-                    {asPercent(item.predicted_away_win)}
-                    <div className="small-text">
-                      {uiText.savedPredictions.table.predictionLabel}: {outcomeLabel(item.prediction_outcome)}
-                    </div>
-                  </td>
-                  <td>
-                    {item.actual_home_goals ?? "-"} - {item.actual_away_goals ?? "-"}
-                    <div className="small-text">
-                      {uiText.savedPredictions.table.resultLabel}: {outcomeLabel(item.actual_outcome)}
-                    </div>
-                  </td>
-                  <td>
-                    {item.status === "settled"
-                      ? item.is_correct
-                        ? uiText.savedPredictions.table.statusSettledCorrect
-                        : uiText.savedPredictions.table.statusSettledWrong
-                      : uiText.savedPredictions.table.statusPending}
-                  </td>
-                  <td>
-                    <ActionButton
-                      loading={isLoading(`refresh-${item.id}`)}
-                      loadingText={uiText.savedPredictions.loading.checking}
-                      onClick={() => refreshSavedPredictionResult(item.id)}
-                    >
-                      {uiText.savedPredictions.actions.refresh}
-                    </ActionButton>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <p>{uiText.savedPredictions.noRecordsToday}</p>
+        {/* Statistics Dashboard */}
+        {stats && (
+          <div className="stats-dashboard">
+            <div className="stat-card">
+              <div className="stat-value">{stats.total_predictions}</div>
+              <div className="stat-label">{t.savedPredictions.stats.totalPredictions}</div>
+            </div>
+            <div className="stat-card accent">
+              <div className="stat-value">{asPercent(stats.accuracy_rate)}</div>
+              <div className="stat-label">{t.savedPredictions.stats.accuracy}</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value">{stats.correct_predictions}</div>
+              <div className="stat-label">{t.savedPredictions.stats.correct}</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value">{stats.pending_predictions}</div>
+              <div className="stat-label">{t.savedPredictions.stats.pending}</div>
+            </div>
+          </div>
         )}
 
-        <div className="row wrap">
+        {/* Filters */}
+        <div className="filters-section">
+          <div className="quick-filters">
+            <button
+              className={`filter-btn ${quickFilter === "today" ? "active" : ""}`}
+              onClick={() => applyQuickFilter("today")}
+            >
+              {t.savedPredictions.filters.today}
+            </button>
+            <button
+              className={`filter-btn ${quickFilter === "yesterday" ? "active" : ""}`}
+              onClick={() => applyQuickFilter("yesterday")}
+            >
+              {t.savedPredictions.filters.yesterday}
+            </button>
+            <button
+              className={`filter-btn ${quickFilter === "lastWeek" ? "active" : ""}`}
+              onClick={() => applyQuickFilter("lastWeek")}
+            >
+              {t.savedPredictions.filters.lastWeek}
+            </button>
+            <button
+              className={`filter-btn ${quickFilter === "custom" ? "active" : ""}`}
+              onClick={() => applyQuickFilter("custom")}
+            >
+              {t.savedPredictions.filters.customRange}
+            </button>
+          </div>
+
+          <div className="date-range-filters">
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => {
+                setDateFrom(e.target.value);
+                setQuickFilter("custom");
+              }}
+            />
+            <span>-</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => {
+                setDateTo(e.target.value);
+                setQuickFilter("custom");
+              }}
+            />
+          </div>
+
+          <div className="action-filters">
+            <label className="archive-toggle">
+              <input
+                type="checkbox"
+                checked={archive}
+                onChange={(e) => setArchive(e.target.checked)}
+              />
+              <span>{t.savedPredictions.filters.archive}</span>
+            </label>
+            <ActionButton
+              className="secondary"
+              loading={isLoading("bulk-refresh")}
+              loadingText={t.savedPredictions.loading.checking}
+              onClick={handleBulkRefresh}
+            >
+              {t.savedPredictions.filters.checkResults}
+            </ActionButton>
+          </div>
+        </div>
+
+        {/* Predictions List */}
+        <p className="small-text">
+          {t.savedPredictions.pagination.pageInfo(
+            predictions.total || 0,
+            predictions.page || 1,
+            predictions.total_pages || 1
+          )}
+        </p>
+
+        {predictions.items?.length ? (
+          <div className="predictions-grid">
+            {predictions.items.map((item) => (
+              <div key={`pred-${item.id}`} className="prediction-card">
+                <div className="prediction-header">
+                  <div className="match-label">{item.match_label || "-"}</div>
+                  {item.status === "settled" && (
+                    <div className={`status-badge ${item.is_correct ? "correct" : "wrong"}`}>
+                      {item.is_correct ? "✓" : "✗"}
+                    </div>
+                  )}
+                </div>
+
+                <div className="prediction-body">
+                  <div className="prediction-row">
+                    <span className="label">{t.savedPredictions.table.prediction1x2}:</span>
+                    <span className="value">
+                      {asPercent(item.predicted_home_win)} / {asPercent(item.predicted_draw)} / {asPercent(item.predicted_away_win)}
+                    </span>
+                  </div>
+                  <div className="prediction-row">
+                    <span className="label">{t.savedPredictions.table.predictionLabel}:</span>
+                    <span className="value">{outcomeLabel(item.prediction_outcome, t)}</span>
+                  </div>
+                  {item.status === "settled" && (
+                    <>
+                      <div className="prediction-row">
+                        <span className="label">{t.savedPredictions.table.actualResult}:</span>
+                        <span className="value">
+                          {item.actual_home_goals ?? "-"} - {item.actual_away_goals ?? "-"}
+                        </span>
+                      </div>
+                      <div className="prediction-row">
+                        <span className="label">{t.savedPredictions.table.resultLabel}:</span>
+                        <span className="value">{outcomeLabel(item.actual_outcome, t)}</span>
+                      </div>
+                    </>
+                  )}
+                  {item.note && (
+                    <div className="prediction-note">
+                      <strong>{t.savedPredictions.table.notePrefix}</strong> {item.note}
+                    </div>
+                  )}
+                  <div className="prediction-meta">
+                    <small>{item.model_name || item.model_id || "-"}</small>
+                    <small>{formatDate(item.prediction_created_at)}</small>
+                  </div>
+                </div>
+
+                <div className="prediction-actions">
+                  <ActionButton
+                    className="small"
+                    loading={isLoading(`refresh-${item.id}`)}
+                    loadingText="..."
+                    onClick={() => handleRefresh(item.id)}
+                  >
+                    {t.savedPredictions.actions.refresh}
+                  </ActionButton>
+                  <ActionButton
+                    className="small secondary"
+                    loading={isLoading(`delete-${item.id}`)}
+                    loadingText="..."
+                    onClick={() => handleDelete(item.id)}
+                  >
+                    {t.savedPredictions.actions.delete}
+                  </ActionButton>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="empty-state">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M9 11l3 3L22 4"/>
+              <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+            </svg>
+            <h3>{locale === "tr" ? "Henüz Kayıtlı Tahmin Yok" : "No Saved Predictions Yet"}</h3>
+            <p>
+              {locale === "tr"
+                ? "Tahmin kaydetmek için bir maç seçin, AI simülasyonu çalıştırın ve 'Tahmini Kaydet' butonuna tıklayın."
+                : "To save a prediction, select a match, run AI simulation, and click 'Save Prediction' button."}
+            </p>
+            <ActionButton onClick={() => navigate("/")}>
+              {locale === "tr" ? "Maçlara Git" : "Go to Matches"}
+            </ActionButton>
+          </div>
+        )}
+
+        {/* Pagination */}
+        <div className="pagination-controls">
           <ActionButton
             loading={isLoading("page-prev")}
-            loadingText={uiText.savedPredictions.loading.default}
-            disabled={(savedPredictions.page || 1) <= 1}
-            onClick={() =>
-              loadDailyPredictions({
-                day: savedPredictionsDay,
-                page: Math.max(1, (savedPredictions.page || 1) - 1),
-                autoRefreshResults: false,
-                key: "page-prev",
-              })
-            }
+            loadingText={t.savedPredictions.loading.default}
+            disabled={page <= 1}
+            onClick={() => {
+              setPage(page - 1);
+              loadPredictions();
+            }}
           >
-            {uiText.savedPredictions.pagination.prevPage}
+            {t.savedPredictions.pagination.prevPage}
           </ActionButton>
           <ActionButton
             loading={isLoading("page-next")}
-            loadingText={uiText.savedPredictions.loading.default}
-            disabled={(savedPredictions.page || 1) >= (savedPredictions.total_pages || 1)}
-            onClick={() =>
-              loadDailyPredictions({
-                day: savedPredictionsDay,
-                page: (savedPredictions.page || 1) + 1,
-                autoRefreshResults: false,
-                key: "page-next",
-              })
-            }
+            loadingText={t.savedPredictions.loading.default}
+            disabled={page >= (predictions.total_pages || 1)}
+            onClick={() => {
+              setPage(page + 1);
+              loadPredictions();
+            }}
           >
-            {uiText.savedPredictions.pagination.nextPage}
+            {t.savedPredictions.pagination.nextPage}
           </ActionButton>
         </div>
       </section>

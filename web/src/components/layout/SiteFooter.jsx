@@ -1,16 +1,20 @@
 import React from "react";
-import { uiText } from "../../i18n/terms.tr";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 export default function SiteFooter() {
+  const { t } = useLanguage();
+
   return (
-    <footer className="site-footer-bar card">
-      <div>
-        <strong>{uiText.footer.title}</strong>
-        <p className="small-text">{uiText.footer.text}</p>
+    <footer className="container">
+      <div className="site-footer-bar card">
+        <div>
+          <strong>{t.footer.title}</strong>
+          <p className="small-text">{t.footer.text}</p>
+        </div>
+        <span className="small-text">
+          {t.footer.copyrightPrefix} {new Date().getFullYear()} EdgeFootball
+        </span>
       </div>
-      <span className="small-text">
-        {uiText.footer.copyrightPrefix} {new Date().getFullYear()} Football AI
-      </span>
     </footer>
   );
 }

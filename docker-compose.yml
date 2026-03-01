@@ -60,7 +60,9 @@ services:
       - SMTP_TIMEOUT_SECONDS=${SMTP_TIMEOUT_SECONDS:-20}
       - SMTP_RETRY_ATTEMPTS=${SMTP_RETRY_ATTEMPTS:-2}
       - SMTP_RETRY_BACKOFF_SECONDS=${SMTP_RETRY_BACKOFF_SECONDS:-1.0}
+      - SITE_BASE_URL=${SITE_BASE_URL:-http://localhost:3001}
     volumes:
+      - ./:/app
       - ./artifacts:/app/artifacts
     ports:
       - "8001:8000"
@@ -112,6 +114,7 @@ services:
       - SMTP_RETRY_ATTEMPTS=${SMTP_RETRY_ATTEMPTS:-2}
       - SMTP_RETRY_BACKOFF_SECONDS=${SMTP_RETRY_BACKOFF_SECONDS:-1.0}
     volumes:
+      - ./:/app
       - ./artifacts:/app/artifacts
     depends_on:
       - db
@@ -161,6 +164,7 @@ services:
       - SMTP_RETRY_ATTEMPTS=${SMTP_RETRY_ATTEMPTS:-2}
       - SMTP_RETRY_BACKOFF_SECONDS=${SMTP_RETRY_BACKOFF_SECONDS:-1.0}
     volumes:
+      - ./:/app
       - ./artifacts:/app/artifacts
     depends_on:
       - db
@@ -174,6 +178,9 @@ services:
       - ./web:/web
     environment:
       - VITE_API_BASE_URL=http://localhost:8001
+      - VITE_SITE_BASE_URL=${VITE_SITE_BASE_URL:-http://localhost:3001}
+      - VITE_GOOGLE_WEB_CLIENT_ID=${VITE_GOOGLE_WEB_CLIENT_ID:-}
+      - GOOGLE_WEB_CLIENT_ID=${GOOGLE_WEB_CLIENT_ID:-}
     ports:
       - "3001:3001"
     depends_on:

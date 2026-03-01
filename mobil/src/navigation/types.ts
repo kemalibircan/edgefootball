@@ -13,11 +13,15 @@ export type HomeStackParamList = {
     fixture: FixtureBoardItem;
   };
   Profile: undefined;
+  Login: undefined;
+  Register: undefined;
+  ForgotPassword: undefined;
 };
 
 export type MainTabParamList = {
   HomeTab: undefined;
   Coupons: undefined;
+  MathGuide: undefined;
   SavedCoupons: undefined;
   Chat: undefined;
 };

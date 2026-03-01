@@ -2,7 +2,7 @@ import React, {useState} from 'react';
 import {Text, View} from 'react-native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Animated, {FadeIn, FadeInDown} from 'react-native-reanimated';
-import type {AuthStackParamList} from '../../navigation/types';
+import type {HomeStackParamList} from '../../navigation/types';
 import {login, requestLoginCode, verifyLoginCode} from '../../lib/api/endpoints';
 import {GoogleSignInCancelledError, signInWithGoogle} from '../../lib/auth/googleSignIn';
 import {useAuthStore} from '../../store/authStore';
@@ -13,7 +13,7 @@ import {AppTextInput} from '../../components/common/AppTextInput';
 import {GradientButton} from '../../components/common/GradientButton';
 import {AuthShell} from '../../components/auth/AuthShell';
 
-export type LoginScreenProps = NativeStackScreenProps<AuthStackParamList, 'Login'>;
+export type LoginScreenProps = NativeStackScreenProps<HomeStackParamList, 'Login'>;
 
 type LoginMode = 'password' | 'code';
 
@@ -57,6 +57,11 @@ export function LoginScreen({navigation}: LoginScreenProps) {
           ? await login(normalizedEmail, password)
           : await verifyLoginCode(normalizedEmail, code.trim());
       await setSession(payload);
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        (navigation as { navigate: (s: string) => void }).navigate('Home');
+      }
     } catch (e) {
       setError(messageFromUnknown(e, 'Giris basarisiz.'));
     } finally {
@@ -90,6 +95,11 @@ export function LoginScreen({navigation}: LoginScreenProps) {
     try {
       const payload = await signInWithGoogle();
       await setSession(payload);
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        (navigation as { navigate: (s: string) => void }).navigate('Home');
+      }
     } catch (e) {
       if (e instanceof GoogleSignInCancelledError) {
         return;

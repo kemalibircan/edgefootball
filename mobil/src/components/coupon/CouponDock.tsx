@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {Dimensions, Pressable, ScrollView, Text, View, Alert, TextInput} from 'react-native';
+import {Dimensions, Pressable, ScrollView, Text, View, Alert, TextInput, Image} from 'react-native';
 import {useMutation} from '@tanstack/react-query';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -14,8 +14,11 @@ import {useCouponApi} from '../../hooks/useCouponApi';
 import {messageFromUnknown} from '../../utils/error';
 import {buildAutoSaveCouponPayload, canAutoSaveCoupon} from '../../lib/coupon/autoSave';
 import {CouponNameModal} from './CouponNameModal';
+import {useAuthStore} from '../../store/authStore';
+import {API_BASE} from '../../lib/api/client';
 
 const screenHeight = Dimensions.get('window').height;
+const DEFAULT_AVATAR_KEY = 'open_peeps_01';
 
 type Props = {
   defaultExpanded?: boolean;
@@ -44,7 +47,9 @@ export function CouponDock({
   const clearSlip = useCouponStore(state => state.clearSlip);
   const setCouponCount = useCouponStore(state => state.setCouponCount);
   const setStake = useCouponStore(state => state.setStake);
+  const currentUser = useAuthStore(state => state.user);
   const insets = useSafeAreaInsets();
+  const [avatarSourceMode, setAvatarSourceMode] = useState<'primary' | 'fallback' | 'icon'>('primary');
 
   const state: DockState = compactOnly ? 'collapsed' : expanded ? 'expanded' : 'collapsed';
   const maxSheetHeight = Math.max(220, Math.floor(screenHeight * maxHeightRatio));
@@ -60,6 +65,21 @@ export function CouponDock({
       maxWin,
     };
   }, [couponCount, items, stake]);
+
+  const avatarKey = useMemo(() => {
+    const normalized = String(currentUser?.avatar_key || '').trim().toLowerCase();
+    return normalized || DEFAULT_AVATAR_KEY;
+  }, [currentUser?.avatar_key]);
+
+  const primaryAvatarUri = useMemo(
+    () => `${API_BASE}/static/avatars/${encodeURIComponent(avatarKey)}.png`,
+    [avatarKey],
+  );
+  const fallbackAvatarUri = useMemo(
+    () => `https://api.dicebear.com/9.x/open-peeps/png?seed=${encodeURIComponent(`footballai-${avatarKey}`)}`,
+    [avatarKey],
+  );
+  const activeAvatarUri = avatarSourceMode === 'primary' ? primaryAvatarUri : avatarSourceMode === 'fallback' ? fallbackAvatarUri : '';
 
   const saveMutation = useMutation({
     mutationFn: async (couponName: string) => {
@@ -123,6 +143,10 @@ export function CouponDock({
     }
   }, [items.length, saveFeedbackTone]);
 
+  useEffect(() => {
+    setAvatarSourceMode('primary');
+  }, [primaryAvatarUri, fallbackAvatarUri]);
+
   const isSaveEnabled = canAutoSaveCoupon(items.length, saveMutation.isPending);
 
   return (
@@ -174,7 +198,35 @@ export function CouponDock({
             alignItems: 'center',
           }}>
           <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}>
-            <Ionicons name="ticket" color={colors.warning} size={17} />
+            <View
+              style={{
+                width: 35,
+                height: 35,
+                borderRadius: 11,
+                overflow: 'hidden',
+                borderWidth: 1,
+                borderColor: colors.accentBorder,
+                backgroundColor: colors.surface,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+              {activeAvatarUri ? (
+                <Image
+                  source={{uri: activeAvatarUri}}
+                  style={{width: '100%', height: '100%'}}
+                  resizeMode="cover"
+                  onError={() => {
+                    setAvatarSourceMode(prev => {
+                      if (prev === 'primary') return 'fallback';
+                      if (prev === 'fallback') return 'icon';
+                      return 'icon';
+                    });
+                  }}
+                />
+              ) : (
+                <Ionicons name="person" color={colors.textMuted} size={12} />
+              )}
+            </View>
             <Text style={{color: colors.text, fontWeight: '800'}}>Kupon Sepeti</Text>
             <Text style={{color: colors.textMuted}}>{items.length} mac</Text>
           </View>
@@ -263,7 +315,7 @@ export function CouponDock({
                   <TextInput
                     value={String(couponCount)}
                     onChangeText={(value) => {
-                      const num = parseInt(value) || 1;
+                      const num = parseInt(value, 10) || 1;
                       setCouponCount(Math.max(1, Math.min(100, num)));
                     }}
                     keyboardType="number-pad"
@@ -287,7 +339,7 @@ export function CouponDock({
                   <TextInput
                     value={String(stake)}
                     onChangeText={(value) => {
-                      const num = parseInt(value) || 1;
+                      const num = parseInt(value, 10) || 1;
                       setStake(Math.max(1, Math.min(10000, num)));
                     }}
                     keyboardType="number-pad"

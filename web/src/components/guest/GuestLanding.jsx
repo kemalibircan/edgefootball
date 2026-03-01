@@ -1,5 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import HeroSection from "../home/HeroSection";
+import LiveScoresWidget from "../home/LiveScoresWidget";
+import SliderShowcase from "../home/SliderShowcase";
+import AiFeaturedHighlights from "../home/AiFeaturedHighlights";
+import MatchPredictionCenter from "../home/MatchPredictionCenter";
+import OddsAnalysisBoard from "../home/OddsAnalysisBoard";
+import ErrorBoundary from "../common/ErrorBoundary";
 import ActionButton from "../dashboard/ActionButton";
 import TeamBadge from "../dashboard/TeamBadge";
 import { uiText } from "../../i18n/terms.tr";
@@ -54,7 +61,41 @@ function deriveAllOdds(row) {
   };
 }
 
-export default function GuestLanding({
+export default function GuestLanding({ apiBase, featuredOddsRows, isLoggedIn = false, isManager = false }) {
+  return (
+    <div className="guest-landing">
+      <ErrorBoundary
+        fallback={(
+          <section className="hero-section">
+            <div className="hero-content">
+              <div className="hero-pill">EdgeFootball</div>
+              <h1 className="hero-title">Mac analizi ve tahminler tek ekranda</h1>
+            </div>
+          </section>
+        )}
+      >
+        <HeroSection isLoggedIn={isLoggedIn} isManager={isManager} />
+      </ErrorBoundary>
+      <ErrorBoundary fallback={null}>
+        <LiveScoresWidget apiBase={apiBase} />
+      </ErrorBoundary>
+      <ErrorBoundary fallback={null}>
+        <SliderShowcase apiBase={apiBase} />
+      </ErrorBoundary>
+      <ErrorBoundary fallback={null}>
+        <AiFeaturedHighlights apiBase={apiBase} />
+      </ErrorBoundary>
+      <ErrorBoundary fallback={null}>
+        <MatchPredictionCenter apiBase={apiBase} />
+      </ErrorBoundary>
+      <ErrorBoundary fallback={null}>
+        <OddsAnalysisBoard apiBase={apiBase} />
+      </ErrorBoundary>
+    </div>
+  );
+}
+
+function GuestLandingLegacy({
   apiBase,
   featuredOddsRows,
 }) {

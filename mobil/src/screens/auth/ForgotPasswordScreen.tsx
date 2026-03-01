@@ -3,7 +3,7 @@ import {Text, View} from 'react-native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Animated, {FadeIn, FadeInDown} from 'react-native-reanimated';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import type {AuthStackParamList} from '../../navigation/types';
+import type {HomeStackParamList} from '../../navigation/types';
 import {confirmForgotPassword, requestForgotPasswordCode} from '../../lib/api/endpoints';
 import {messageFromUnknown} from '../../utils/error';
 import {colors} from '../../theme/colors';
@@ -13,7 +13,7 @@ import {GradientButton} from '../../components/common/GradientButton';
 import {AuthShell} from '../../components/auth/AuthShell';
 import {PasswordStrengthIndicator} from '../../components/common/PasswordStrengthIndicator';
 
-export type ForgotPasswordScreenProps = NativeStackScreenProps<AuthStackParamList, 'ForgotPassword'>;
+export type ForgotPasswordScreenProps = NativeStackScreenProps<HomeStackParamList, 'ForgotPassword'>;
 
 type Step = 'email' | 'reset';
 

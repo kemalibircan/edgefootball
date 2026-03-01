@@ -10,7 +10,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
@@ -34,6 +34,19 @@ AUTH_EMAIL_CHALLENGES_TABLE = "auth_email_challenges"
 EMAIL_CODE_PURPOSE_REGISTER = "register"
 EMAIL_CODE_PURPOSE_LOGIN = "login"
 EMAIL_CODE_PURPOSE_PASSWORD_RESET = "password_reset"
+DEFAULT_AVATAR_KEY = "open_peeps_01"
+AVATAR_SOURCE_NAME = "DiceBear Open Peeps"
+AVATAR_SOURCE_URL = "https://www.dicebear.com/styles/open-peeps"
+AVATAR_LICENSE_NAME = "CC0-1.0"
+AVATAR_LICENSE_URL = "https://www.dicebear.com/licenses/"
+AVATAR_OPTIONS: tuple[dict[str, str], ...] = tuple(
+    {
+        "key": f"open_peeps_{index:02d}",
+        "label": f"Avatar {index:02d}",
+    }
+    for index in range(1, 11)
+)
+AVATAR_KEY_SET = {item["key"] for item in AVATAR_OPTIONS}
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 auth_scheme = HTTPBearer(auto_error=False)
@@ -50,6 +63,7 @@ class AuthUser(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     advanced_mode_enabled: bool = False
+    avatar_key: str = DEFAULT_AVATAR_KEY
 
 
 class LoginRequest(BaseModel):
@@ -123,6 +137,24 @@ class PreferencesResponse(BaseModel):
     advanced_mode_enabled: bool
 
 
+class AvatarOption(BaseModel):
+    key: str
+    label: str
+    image_url: str
+    source_name: str
+    source_url: str
+    license_name: str
+    license_url: str
+
+
+class AvatarOptionsResponse(BaseModel):
+    items: list[AvatarOption]
+
+
+class AvatarUpdateRequest(BaseModel):
+    avatar_key: str = Field(min_length=3, max_length=64)
+
+
 def _normalize_username(value: str) -> str:
     return str(value or "").strip().lower()
 
@@ -135,6 +167,31 @@ def _normalize_email_code(value: str) -> str:
     raw = str(value or "")
     digits = "".join(ch for ch in raw if ch.isdigit())
     return digits if digits else raw.strip()
+
+
+def _normalize_avatar_key(value: str) -> str:
+    normalized = str(value or "").strip().lower()
+    return normalized if normalized in AVATAR_KEY_SET else ""
+
+
+def _avatar_image_url(base_url: str, avatar_key: str) -> str:
+    base = str(base_url or "").rstrip("/")
+    return f"{base}/static/avatars/{avatar_key}.png"
+
+
+def _avatar_option_payload(base_url: str) -> list[AvatarOption]:
+    return [
+        AvatarOption(
+            key=str(item["key"]),
+            label=str(item["label"]),
+            image_url=_avatar_image_url(base_url, str(item["key"])),
+            source_name=AVATAR_SOURCE_NAME,
+            source_url=AVATAR_SOURCE_URL,
+            license_name=AVATAR_LICENSE_NAME,
+            license_url=AVATAR_LICENSE_URL,
+        )
+        for item in AVATAR_OPTIONS
+    ]
 
 
 def _utc_now() -> datetime:
@@ -563,6 +620,40 @@ def ensure_auth_tables(engine) -> None:
         conn.execute(
             text(
                 f"""
+                ALTER TABLE {AUTH_USERS_TABLE}
+                ADD COLUMN IF NOT EXISTS avatar_key TEXT
+                """
+            )
+        )
+        conn.execute(
+            text(
+                f"""
+                UPDATE {AUTH_USERS_TABLE}
+                SET avatar_key = :avatar_key
+                WHERE avatar_key IS NULL OR LENGTH(TRIM(avatar_key)) = 0
+                """
+            ),
+            {"avatar_key": DEFAULT_AVATAR_KEY},
+        )
+        conn.execute(
+            text(
+                f"""
+                ALTER TABLE {AUTH_USERS_TABLE}
+                ALTER COLUMN avatar_key SET DEFAULT '{DEFAULT_AVATAR_KEY}'
+                """
+            )
+        )
+        conn.execute(
+            text(
+                f"""
+                ALTER TABLE {AUTH_USERS_TABLE}
+                ALTER COLUMN avatar_key SET NOT NULL
+                """
+            )
+        )
+        conn.execute(
+            text(
+                f"""
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_{AUTH_USERS_TABLE}_email_lower
                 ON {AUTH_USERS_TABLE} (LOWER(email))
                 """
@@ -670,6 +761,8 @@ def ensure_auth_tables(engine) -> None:
 def _row_to_user(row: Any) -> AuthUser:
     email = _normalize_email(str(row.get("email") or "")) if row else ""
     username = str(row.get("username") or "").strip() if row else ""
+    avatar_key_raw = str(row.get("avatar_key") or "").strip() if row else ""
+    avatar_key = avatar_key_raw if avatar_key_raw in AVATAR_KEY_SET else DEFAULT_AVATAR_KEY
     return AuthUser(
         id=int(row["id"]),
         username=username or email or f"user-{int(row['id'])}",
@@ -681,6 +774,7 @@ def _row_to_user(row: Any) -> AuthUser:
         created_at=row.get("created_at"),
         updated_at=row.get("updated_at"),
         advanced_mode_enabled=bool(row.get("advanced_mode_enabled") or False),
+        avatar_key=avatar_key,
     )
 
 
@@ -707,7 +801,7 @@ def bootstrap_superadmin(settings: Settings) -> Optional[AuthUser]:
                 ) VALUES (
                     :username, :email, TRUE, :password_hash, :role, :credits, TRUE, :now_utc, :now_utc
                 )
-                RETURNING id, username, email, email_verified, role, credits, is_active, created_at, updated_at, advanced_mode_enabled
+                RETURNING id, username, email, email_verified, role, credits, is_active, created_at, updated_at, advanced_mode_enabled, avatar_key
                 """
             ),
             {
@@ -743,7 +837,7 @@ def _fetch_user_by_id(conn, user_id: int) -> Optional[AuthUser]:
     row = conn.execute(
         text(
             f"""
-            SELECT id, username, email, email_verified, role, credits, is_active, created_at, updated_at, advanced_mode_enabled
+            SELECT id, username, email, email_verified, role, credits, is_active, created_at, updated_at, advanced_mode_enabled, avatar_key
             FROM {AUTH_USERS_TABLE}
             WHERE id = :user_id
             LIMIT 1
@@ -758,7 +852,7 @@ def _fetch_login_row(conn, email: str) -> Optional[dict[str, Any]]:
     row = conn.execute(
         text(
             f"""
-            SELECT id, username, email, email_verified, password_hash, role, credits, is_active, created_at, updated_at, advanced_mode_enabled, google_sub
+            SELECT id, username, email, email_verified, password_hash, role, credits, is_active, created_at, updated_at, advanced_mode_enabled, avatar_key, google_sub
             FROM {AUTH_USERS_TABLE}
             WHERE LOWER(email) = :email
             LIMIT 1
@@ -776,7 +870,7 @@ def _fetch_user_by_google_sub(conn, google_sub: str) -> Optional[dict[str, Any]]
     row = conn.execute(
         text(
             f"""
-            SELECT id, username, email, email_verified, role, credits, is_active, created_at, updated_at, advanced_mode_enabled, google_sub
+            SELECT id, username, email, email_verified, role, credits, is_active, created_at, updated_at, advanced_mode_enabled, avatar_key, google_sub
             FROM {AUTH_USERS_TABLE}
             WHERE google_sub = :google_sub
             LIMIT 1
@@ -1001,7 +1095,7 @@ def register_verify(request: RegisterVerifyRequest, settings: Settings = Depends
             updated = conn.execute(
                 text(
                     f"""
-                    SELECT id, username, email, email_verified, role, credits, is_active, created_at, updated_at, advanced_mode_enabled
+                    SELECT id, username, email, email_verified, role, credits, is_active, created_at, updated_at, advanced_mode_enabled, avatar_key
                     FROM {AUTH_USERS_TABLE}
                     WHERE id = :user_id
                     LIMIT 1
@@ -1041,7 +1135,7 @@ def register_verify(request: RegisterVerifyRequest, settings: Settings = Depends
                         :created_at,
                         :updated_at
                     )
-                    RETURNING id, username, email, email_verified, role, credits, is_active, created_at, updated_at, advanced_mode_enabled
+                    RETURNING id, username, email, email_verified, role, credits, is_active, created_at, updated_at, advanced_mode_enabled, avatar_key
                     """
                 ),
                 {
@@ -1157,7 +1251,7 @@ def login_google(request: GoogleLoginRequest, settings: Settings = Depends(get_s
             refreshed = conn.execute(
                 text(
                     f"""
-                    SELECT id, username, email, email_verified, role, credits, is_active, created_at, updated_at, advanced_mode_enabled, google_sub
+                    SELECT id, username, email, email_verified, role, credits, is_active, created_at, updated_at, advanced_mode_enabled, avatar_key, google_sub
                     FROM {AUTH_USERS_TABLE}
                     WHERE id = :user_id
                     LIMIT 1
@@ -1197,7 +1291,7 @@ def login_google(request: GoogleLoginRequest, settings: Settings = Depends(get_s
                         :created_at,
                         :updated_at
                     )
-                    RETURNING id, username, email, email_verified, role, credits, is_active, created_at, updated_at, advanced_mode_enabled, google_sub
+                    RETURNING id, username, email, email_verified, role, credits, is_active, created_at, updated_at, advanced_mode_enabled, avatar_key, google_sub
                     """
                 ),
                 {
@@ -1392,6 +1486,45 @@ def forgot_password_legacy_alias(request: LegacyForgotPasswordRequest, settings:
         return ForgotPasswordResponse(message="Eger email kayitliysa sifre sifirlama kodu gonderildi.")
 
     return forgot_password_request(ForgotPasswordCodeRequest(email=email), settings)
+
+
+@router.get("/avatar-options", response_model=AvatarOptionsResponse)
+def avatar_options(request: Request):
+    return AvatarOptionsResponse(items=_avatar_option_payload(str(request.base_url)))
+
+
+@router.patch("/me/avatar", response_model=AuthUser)
+def update_my_avatar(
+    request: AvatarUpdateRequest,
+    current_user: AuthUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+):
+    avatar_key = _normalize_avatar_key(request.avatar_key)
+    if not avatar_key:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Gecersiz avatar secimi.")
+
+    engine = create_engine(settings.db_url)
+    ensure_auth_tables(engine)
+    with engine.begin() as conn:
+        row = conn.execute(
+            text(
+                f"""
+                UPDATE {AUTH_USERS_TABLE}
+                SET avatar_key = :avatar_key,
+                    updated_at = :now_utc
+                WHERE id = :user_id
+                RETURNING id, username, email, email_verified, role, credits, is_active, created_at, updated_at, advanced_mode_enabled, avatar_key
+                """
+            ),
+            {
+                "avatar_key": avatar_key,
+                "now_utc": _utc_now(),
+                "user_id": int(current_user.id),
+            },
+        ).mappings().first()
+        if not row:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        return _row_to_user(row)
 
 
 @router.get("/me", response_model=AuthUser)

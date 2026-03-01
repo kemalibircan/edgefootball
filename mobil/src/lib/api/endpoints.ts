@@ -1,6 +1,8 @@
 import {apiClient} from './client';
+import {ApiError} from '../../utils/error';
 import type {
   AiCommentaryResponse,
+  AvatarOptionsResponse,
   ChatFixtureSearchResponse,
   ChatMessageCreateRequest,
   ChatMessageCreateResponse,
@@ -18,6 +20,30 @@ import type {
   SliderPublicResponse,
   ShowcasePublicResponse,
 } from '../../types/api';
+
+const AVATAR_FALLBACK_COUNT = 10;
+const AVATAR_SOURCE_NAME = 'DiceBear Open Peeps';
+const AVATAR_SOURCE_URL = 'https://www.dicebear.com/styles/open-peeps';
+const AVATAR_LICENSE_NAME = 'CC0-1.0';
+const AVATAR_LICENSE_URL = 'https://www.dicebear.com/licenses/';
+
+function buildFallbackAvatarOptions(): AvatarOptionsResponse {
+  const items = Array.from({length: AVATAR_FALLBACK_COUNT}, (_, index) => {
+    const order = index + 1;
+    const key = `open_peeps_${String(order).padStart(2, '0')}`;
+    const seed = `footballai-${key}`;
+    return {
+      key,
+      label: `Avatar ${String(order).padStart(2, '0')}`,
+      image_url: `https://api.dicebear.com/9.x/open-peeps/png?seed=${encodeURIComponent(seed)}`,
+      source_name: AVATAR_SOURCE_NAME,
+      source_url: AVATAR_SOURCE_URL,
+      license_name: AVATAR_LICENSE_NAME,
+      license_url: AVATAR_LICENSE_URL,
+    };
+  });
+  return {items, supports_update: false};
+}
 
 export async function login(email: string, password: string) {
   return apiClient.request<LoginResponse>('/auth/login', {
@@ -85,6 +111,38 @@ export async function confirmForgotPassword(email: string, code: string, newPass
 
 export async function getMe() {
   return apiClient.request<LoginResponse['user']>('/auth/me');
+}
+
+export async function getAvatarOptions() {
+  try {
+    const payload = await apiClient.request<AvatarOptionsResponse>('/auth/avatar-options', {skipAuth: true});
+    if (Array.isArray(payload?.items) && payload.items.length > 0) {
+      return {
+        ...payload,
+        supports_update: payload.supports_update ?? true,
+      };
+    }
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.status === 404) {
+      return buildFallbackAvatarOptions();
+    }
+    throw error;
+  }
+  return buildFallbackAvatarOptions();
+}
+
+export async function updateMyAvatar(avatarKey: string) {
+  try {
+    return await apiClient.request<LoginResponse['user']>('/auth/me/avatar', {
+      method: 'PATCH',
+      body: {avatar_key: avatarKey},
+    });
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      throw new ApiError('Sunucu surumu avatar guncellemesini desteklemiyor.', 404);
+    }
+    throw error;
+  }
 }
 
 export type FixtureBoardFilters = {

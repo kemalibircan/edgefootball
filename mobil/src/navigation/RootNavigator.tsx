@@ -1,6 +1,5 @@
 import React from 'react';
 import {ActivityIndicator, Image, View, Text} from 'react-native';
-import {AuthStack} from './AuthStack';
 import {MainTabs} from './MainTabs';
 import {useAuthBootstrap} from '../hooks/useAuthBootstrap';
 import {useAuthStore} from '../store/authStore';
@@ -13,7 +12,6 @@ export function RootNavigator() {
   const {colors} = useAppTheme();
 
   const isBootstrapping = useAuthStore(state => state.isBootstrapping);
-  const isAuthenticated = useAuthStore(state => state.isAuthenticated);
 
   if (isBootstrapping) {
     return (
@@ -25,5 +23,5 @@ export function RootNavigator() {
     );
   }
 
-  return isAuthenticated ? <MainTabs /> : <AuthStack />;
+  return <MainTabs />;
 }

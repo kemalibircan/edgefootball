@@ -189,7 +189,7 @@ export default function StickyCouponDock() {
           </div>
 
           <div className="coupon-dock-actions">
-            <button type="button" className="smart-mini-btn" onClick={() => navigate("/oran-tahtasi")}>
+            <button type="button" className="smart-mini-btn" onClick={() => navigate("/kuponlarim")}>
               Oran Tahtasına Git
             </button>
             <button

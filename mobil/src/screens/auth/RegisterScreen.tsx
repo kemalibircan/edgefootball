@@ -3,7 +3,7 @@ import {Text, View} from 'react-native';
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Animated, {FadeIn, FadeInDown} from 'react-native-reanimated';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import type {AuthStackParamList} from '../../navigation/types';
+import type {HomeStackParamList} from '../../navigation/types';
 import {requestRegisterCode, verifyRegisterCode} from '../../lib/api/endpoints';
 import {GoogleSignInCancelledError, signInWithGoogle} from '../../lib/auth/googleSignIn';
 import {useAuthStore} from '../../store/authStore';
@@ -15,7 +15,7 @@ import {GradientButton} from '../../components/common/GradientButton';
 import {AuthShell} from '../../components/auth/AuthShell';
 import {PasswordStrengthIndicator} from '../../components/common/PasswordStrengthIndicator';
 
-export type RegisterScreenProps = NativeStackScreenProps<AuthStackParamList, 'Register'>;
+export type RegisterScreenProps = NativeStackScreenProps<HomeStackParamList, 'Register'>;
 
 type Step = 'credentials' | 'verification';
 
@@ -91,6 +91,11 @@ export function RegisterScreen({navigation}: RegisterScreenProps) {
     try {
       const payload = await verifyRegisterCode(normalizedEmail, code.trim());
       await setSession(payload);
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        (navigation as { navigate: (s: string) => void }).navigate('Home');
+      }
     } catch (e) {
       setError(messageFromUnknown(e, 'Kayıt başarısız.'));
     } finally {
@@ -105,6 +110,11 @@ export function RegisterScreen({navigation}: RegisterScreenProps) {
     try {
       const payload = await signInWithGoogle();
       await setSession(payload);
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        (navigation as { navigate: (s: string) => void }).navigate('Home');
+      }
     } catch (e) {
       if (e instanceof GoogleSignInCancelledError) {
         return;

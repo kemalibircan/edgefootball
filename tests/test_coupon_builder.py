@@ -272,6 +272,80 @@ def test_low_coupon_safety_fallback_respects_no_duplicate_rule(monkeypatch):
     assert len(all_ids) == len(set(all_ids))
 
 
+def test_medium_coupon_uses_risk_relax_fallback_when_strict_candidates_insufficient(monkeypatch):
+    rows = [
+        _fixture_row(1201, 2.80, 5.40, 6.10),
+        _fixture_row(1202, 2.90, 5.30, 6.00),
+        _fixture_row(1203, 3.00, 5.20, 5.90),
+        _fixture_row(1204, 3.10, 5.10, 5.80),
+    ]
+    monkeypatch.setattr(builder, "_load_fixture_candidates", lambda *args, **kwargs: rows)
+    monkeypatch.setattr(
+        builder,
+        "simulate_fixture",
+        lambda fixture_id, settings, model_id=None: _simulation_payload(fixture_id, home_win=0.50, draw=0.28, away_win=0.22),
+    )
+
+    settings = Settings(dummy_mode=True, sportmonks_api_token=None, coupon_generation_max_simulations=90)
+    payload = builder.generate_coupon_payload(
+        settings,
+        days_window=3,
+        matches_per_coupon=3,
+        league_ids=[600],
+    )
+
+    medium_coupon = payload["coupons"]["medium"]
+    assert medium_coupon["unavailable"] is False
+    assert medium_coupon["selection_policy"] == "risk_relax_fallback"
+    assert medium_coupon["safety_level_used"] == 0
+    assert medium_coupon["candidate_counts"]["strict_count"] < 3
+    assert medium_coupon["candidate_counts"]["safety_count"] >= 3
+    assert len(medium_coupon["matches"]) >= 3
+
+
+def test_high_coupon_risk_relax_fallback_respects_no_duplicate_rule(monkeypatch):
+    rows = []
+    for fid in (1301, 1302, 1303, 1304):
+        rows.append(_fixture_row(fid, 1.42, 4.80, 7.10))
+    for fid in (2301, 2302, 2303, 2304):
+        rows.append(_fixture_row(fid, 2.20, 3.60, 3.70))
+    for fid in (3301, 3302, 3303, 3304):
+        rows.append(_fixture_row(fid, 2.60, 3.20, 6.80))
+
+    monkeypatch.setattr(builder, "_load_fixture_candidates", lambda *args, **kwargs: rows)
+
+    def _simulate_fixture(fixture_id: int, settings: Settings, model_id=None):
+        if fixture_id < 2000:
+            return _simulation_payload(fixture_id, home_win=0.72, draw=0.18, away_win=0.10)
+        if fixture_id < 3000:
+            return _simulation_payload(fixture_id, home_win=0.50, draw=0.28, away_win=0.22)
+        return _simulation_payload(fixture_id, home_win=0.33, draw=0.29, away_win=0.38)
+
+    monkeypatch.setattr(builder, "simulate_fixture", _simulate_fixture)
+
+    settings = Settings(dummy_mode=True, sportmonks_api_token=None, coupon_generation_max_simulations=90)
+    payload = builder.generate_coupon_payload(
+        settings,
+        days_window=3,
+        matches_per_coupon=3,
+        league_ids=[600],
+    )
+
+    assert payload["coupons"]["low"]["unavailable"] is False
+    assert payload["coupons"]["medium"]["unavailable"] is False
+    high_coupon = payload["coupons"]["high"]
+    assert high_coupon["unavailable"] is False
+    assert high_coupon["selection_policy"] == "risk_relax_fallback"
+    assert high_coupon["safety_level_used"] == 0
+    assert high_coupon["candidate_counts"]["strict_count"] < 3
+    assert high_coupon["candidate_counts"]["safety_count"] >= 3
+
+    all_ids = []
+    for risk_key in ("low", "medium", "high"):
+        all_ids.extend([item["fixture_id"] for item in payload["coupons"][risk_key]["matches"]])
+    assert len(all_ids) == len(set(all_ids))
+
+
 def test_generate_coupon_payload_builds_math_coupons_with_valid_ranges(monkeypatch):
     rows = [
         _fixture_row(4001, 1.40, 4.80, 7.20),

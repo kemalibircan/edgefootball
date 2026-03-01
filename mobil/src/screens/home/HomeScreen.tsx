@@ -9,6 +9,7 @@ import {FixtureCard} from '../../components/fixture/FixtureCard';
 import {getFixtureBoard, getShowcasePublic, getSliderPublic} from '../../lib/api/endpoints';
 import {LEAGUE_OPTIONS, GAME_TYPE_OPTIONS} from '../../constants/leagues';
 import {useUiStore} from '../../store/uiStore';
+import {useAuthStore} from '../../store/authStore';
 import type {HomeStackParamList} from '../../navigation/types';
 import {HomeSlider} from '../../components/home/HomeSlider';
 import {ShowcaseOddsSection} from '../../components/home/ShowcaseOddsSection';
@@ -25,6 +26,7 @@ export type HomeScreenProps = NativeStackScreenProps<HomeStackParamList, 'Home'>
 const APP_LOGO = require('../../imgs/logo-dark.png');
 
 export function HomeScreen({navigation}: HomeScreenProps) {
+  const isAuthenticated = useAuthStore(state => state.isAuthenticated);
   const lastLeagueId = useUiStore(state => state.lastLeagueId);
   const lastGameType = useUiStore(state => state.lastGameType);
   const setLastLeagueId = useUiStore(state => state.setLastLeagueId);
@@ -113,59 +115,99 @@ export function HomeScreen({navigation}: HomeScreenProps) {
                   <Ionicons name="sparkles" color={colors.accent} size={24} />
                 </View>
 
-                <View style={{flexDirection: 'row', gap: 8}}>
-                  <Pressable
-                    onPress={() => navigation.getParent()?.navigate('Coupons')}
-                    style={{
-                      flex: 1,
-                      minHeight: 42,
-                      borderRadius: 12,
-                      borderWidth: 1,
-                      borderColor: colors.lineStrong,
-                      backgroundColor: colors.surface,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexDirection: 'row',
-                      gap: 6,
-                    }}>
-                    <Ionicons name="ticket-outline" size={16} color={colors.text} />
-                    <Text style={{color: colors.text, fontWeight: '700'}}>Kuponlar</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => navigation.getParent()?.navigate('SavedCoupons')}
-                    style={{
-                      flex: 1,
-                      minHeight: 42,
-                      borderRadius: 12,
-                      borderWidth: 1,
-                      borderColor: colors.lineStrong,
-                      backgroundColor: colors.surface,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexDirection: 'row',
-                      gap: 6,
-                    }}>
-                    <Ionicons name="albums-outline" size={16} color={colors.text} />
-                    <Text style={{color: colors.text, fontWeight: '700'}}>Kaydedilenler</Text>
-                  </Pressable>
-                </View>
-
-                <Pressable
-                  onPress={() => navigation.navigate('Profile')}
-                  style={{
-                    minHeight: 42,
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: colors.lineStrong,
-                    backgroundColor: colors.surface,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexDirection: 'row',
-                    gap: 6,
-                  }}>
-                  <Ionicons name="person-circle-outline" size={16} color={colors.text} />
-                  <Text style={{color: colors.text, fontWeight: '700'}}>Profil</Text>
-                </Pressable>
+                {isAuthenticated ? (
+                  <>
+                    <View style={{flexDirection: 'row', gap: 8}}>
+                      <Pressable
+                        onPress={() => navigation.getParent()?.navigate('Coupons')}
+                        style={{
+                          flex: 1,
+                          minHeight: 42,
+                          borderRadius: 12,
+                          borderWidth: 1,
+                          borderColor: colors.lineStrong,
+                          backgroundColor: colors.surface,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexDirection: 'row',
+                          gap: 6,
+                        }}>
+                        <Ionicons name="ticket-outline" size={16} color={colors.text} />
+                        <Text style={{color: colors.text, fontWeight: '700'}}>Kuponlar</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => navigation.getParent()?.navigate('SavedCoupons')}
+                        style={{
+                          flex: 1,
+                          minHeight: 42,
+                          borderRadius: 12,
+                          borderWidth: 1,
+                          borderColor: colors.lineStrong,
+                          backgroundColor: colors.surface,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexDirection: 'row',
+                          gap: 6,
+                        }}>
+                        <Ionicons name="albums-outline" size={16} color={colors.text} />
+                        <Text style={{color: colors.text, fontWeight: '700'}}>Kaydedilenler</Text>
+                      </Pressable>
+                    </View>
+                    <Pressable
+                      onPress={() => navigation.navigate('Profile')}
+                      style={{
+                        minHeight: 42,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: colors.lineStrong,
+                        backgroundColor: colors.surface,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexDirection: 'row',
+                        gap: 6,
+                      }}>
+                      <Ionicons name="person-circle-outline" size={16} color={colors.text} />
+                      <Text style={{color: colors.text, fontWeight: '700'}}>Profil</Text>
+                    </Pressable>
+                  </>
+                ) : (
+                  <View style={{flexDirection: 'row', gap: 8, flexWrap: 'wrap'}}>
+                    <Pressable
+                      onPress={() => navigation.navigate('Login')}
+                      style={{
+                        flex: 1,
+                        minHeight: 42,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: colors.accent,
+                        backgroundColor: colors.accent,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexDirection: 'row',
+                        gap: 6,
+                      }}>
+                      <Ionicons name="log-in-outline" size={16} color="#fff" />
+                      <Text style={{color: '#fff', fontWeight: '700'}}>Giriş Yap</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => navigation.navigate('Register')}
+                      style={{
+                        flex: 1,
+                        minHeight: 42,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: colors.lineStrong,
+                        backgroundColor: colors.surface,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexDirection: 'row',
+                        gap: 6,
+                      }}>
+                      <Ionicons name="person-add-outline" size={16} color={colors.text} />
+                      <Text style={{color: colors.text, fontWeight: '700'}}>Kayıt Ol</Text>
+                    </Pressable>
+                  </View>
+                )}
               </View>
 
               <HomeSlider images={sliderImages} />

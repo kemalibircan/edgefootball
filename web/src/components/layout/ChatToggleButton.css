@@ -1,0 +1,39 @@
+.chat-toggle-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.chat-toggle-button:hover {
+  background: var(--glass-hover);
+  border-color: var(--accent-lime);
+  color: var(--accent-lime);
+  box-shadow: 0 0 15px var(--accent-lime-glow);
+}
+
+.chat-toggle-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  background: var(--danger);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+}

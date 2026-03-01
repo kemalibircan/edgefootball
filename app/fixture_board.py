@@ -237,6 +237,49 @@ def ensure_fixture_board_tables(engine) -> None:
                 """
             )
         )
+        # Backfill columns for deployments created before live score/state fields existed.
+        conn.execute(
+            text(
+                f"""
+                ALTER TABLE {FIXTURE_BOARD_CACHE_TABLE} ADD COLUMN IF NOT EXISTS home_score INTEGER
+                """
+            )
+        )
+        conn.execute(
+            text(
+                f"""
+                ALTER TABLE {FIXTURE_BOARD_CACHE_TABLE} ADD COLUMN IF NOT EXISTS away_score INTEGER
+                """
+            )
+        )
+        conn.execute(
+            text(
+                f"""
+                ALTER TABLE {FIXTURE_BOARD_CACHE_TABLE} ADD COLUMN IF NOT EXISTS match_state TEXT
+                """
+            )
+        )
+        conn.execute(
+            text(
+                f"""
+                ALTER TABLE {FIXTURE_BOARD_CACHE_TABLE} ADD COLUMN IF NOT EXISTS match_minute INTEGER
+                """
+            )
+        )
+        conn.execute(
+            text(
+                f"""
+                ALTER TABLE {FIXTURE_BOARD_CACHE_TABLE} ADD COLUMN IF NOT EXISTS match_second INTEGER
+                """
+            )
+        )
+        conn.execute(
+            text(
+                f"""
+                ALTER TABLE {FIXTURE_BOARD_CACHE_TABLE} ADD COLUMN IF NOT EXISTS match_added_time INTEGER
+                """
+            )
+        )
         conn.execute(
             text(
                 f"""
@@ -271,6 +314,15 @@ def ensure_fixture_board_tables(engine) -> None:
                 f"""
                 CREATE INDEX IF NOT EXISTS idx_fixture_board_league_start
                 ON {FIXTURE_BOARD_CACHE_TABLE} (league_id, starting_at)
+                """
+            )
+        )
+        conn.execute(
+            text(
+                f"""
+                CREATE INDEX IF NOT EXISTS idx_fixture_board_cache_is_live
+                ON {FIXTURE_BOARD_CACHE_TABLE} (is_live)
+                WHERE is_live = TRUE
                 """
             )
         )
@@ -373,6 +425,15 @@ def _avg_or_none(values: list[float]) -> Optional[float]:
     if not values:
         return None
     return round(float(sum(values) / len(values)), 2)
+
+
+def _aggregate_odds(values: list[float], odds_policy: str) -> Optional[float]:
+    if not values:
+        return None
+    policy = str(odds_policy or "avg").strip().lower()
+    if policy == "max":
+        return round(float(max(values)), 2)
+    return _avg_or_none(values)
 
 
 def _normalized_market_description(row: dict) -> str:
@@ -496,13 +557,22 @@ def _is_btts_market(description: str) -> bool:
     return "both teams to score" in description or "btts" in description
 
 
-def _build_odds_markets(odds_rows: list[dict], home_name: str, away_name: str) -> dict:
+def _build_odds_markets(
+    odds_rows: list[dict],
+    home_name: str,
+    away_name: str,
+    *,
+    odds_policy: str = "avg",
+) -> dict:
     match_result: dict[str, list[float]] = {"1": [], "0": [], "2": []}
     first_half: dict[str, list[float]] = {"1": [], "0": [], "2": []}
     handicap_by_line: dict[str, dict[str, Any]] = {}
     over_under_by_line: dict[str, dict[str, Any]] = {}
     btts: dict[str, list[float]] = {"yes": [], "no": []}
     mapped_count = 0
+    policy_key = str(odds_policy or "avg").strip().lower()
+    if policy_key not in {"avg", "max"}:
+        policy_key = "avg"
 
     for row in odds_rows:
         if not isinstance(row, dict):
@@ -575,7 +645,11 @@ def _build_odds_markets(odds_rows: list[dict], home_name: str, away_name: str) -
             continue
 
     def _pack_1x2(payload: dict[str, list[float]]) -> Optional[dict]:
-        out = {"1": _avg_or_none(payload["1"]), "0": _avg_or_none(payload["0"]), "2": _avg_or_none(payload["2"])}
+        out = {
+            "1": _aggregate_odds(payload["1"], policy_key),
+            "0": _aggregate_odds(payload["0"], policy_key),
+            "2": _aggregate_odds(payload["2"], policy_key),
+        }
         if all(value is None for value in out.values()):
             return None
         return out
@@ -586,9 +660,9 @@ def _build_odds_markets(odds_rows: list[dict], home_name: str, away_name: str) -
         candidates: list[dict] = []
         for data in handicap_by_line.values():
             outcomes = {
-                "1": _avg_or_none(data["1"]),
-                "0": _avg_or_none(data["0"]),
-                "2": _avg_or_none(data["2"]),
+                "1": _aggregate_odds(data["1"], policy_key),
+                "0": _aggregate_odds(data["0"], policy_key),
+                "2": _aggregate_odds(data["2"], policy_key),
             }
             coverage = sum(1 for value in outcomes.values() if value is not None)
             if coverage == 0:
@@ -614,8 +688,8 @@ def _build_odds_markets(odds_rows: list[dict], home_name: str, away_name: str) -
             return None
         candidates: list[dict] = []
         for data in over_under_by_line.values():
-            over = _avg_or_none(data["over"])
-            under = _avg_or_none(data["under"])
+            over = _aggregate_odds(data["over"], policy_key)
+            under = _aggregate_odds(data["under"], policy_key)
             if over is None and under is None:
                 continue
             line_val = data.get("line_value")
@@ -642,7 +716,10 @@ def _build_odds_markets(odds_rows: list[dict], home_name: str, away_name: str) -
     market_first_half = _pack_1x2(first_half)
     market_handicap = _pick_handicap_market()
     market_over_under = _pick_over_under_market()
-    market_btts = {"yes": _avg_or_none(btts["yes"]), "no": _avg_or_none(btts["no"])}
+    market_btts = {
+        "yes": _aggregate_odds(btts["yes"], policy_key),
+        "no": _aggregate_odds(btts["no"], policy_key),
+    }
     if all(value is None for value in market_btts.values()):
         market_btts = None
 
@@ -655,6 +732,50 @@ def _build_odds_markets(odds_rows: list[dict], home_name: str, away_name: str) -
         "market_over_under_25_json": market_over_under,
         "market_btts_json": market_btts,
         "extra_market_count": extra_market_count,
+    }
+
+
+def extract_fixture_markets_from_payload(payload: dict, *, odds_policy: str = "avg") -> dict:
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
+    if not isinstance(data, dict):
+        return {
+            "markets": {
+                "match_result": None,
+                "first_half": None,
+                "handicap": None,
+                "over_under_25": None,
+                "btts": None,
+            },
+            "extra_market_count": 0,
+            "odds_row_count": 0,
+        }
+
+    home, away = _extract_participants(data)
+    home_name = str(home.get("name") or "Home").strip()
+    away_name = str(away.get("name") or "Away").strip()
+
+    odds_rows = data.get("odds") or []
+    if isinstance(odds_rows, dict):
+        odds_rows = odds_rows.get("data") or []
+    if not isinstance(odds_rows, list):
+        odds_rows = []
+
+    odds_payload = _build_odds_markets(
+        odds_rows,
+        home_name=home_name,
+        away_name=away_name,
+        odds_policy=odds_policy,
+    )
+    return {
+        "markets": {
+            "match_result": odds_payload.get("market_match_result_json"),
+            "first_half": odds_payload.get("market_first_half_json"),
+            "handicap": odds_payload.get("market_handicap_json"),
+            "over_under_25": odds_payload.get("market_over_under_25_json"),
+            "btts": odds_payload.get("market_btts_json"),
+        },
+        "extra_market_count": int(odds_payload.get("extra_market_count") or 0),
+        "odds_row_count": len([row for row in odds_rows if isinstance(row, dict)]),
     }
 
 
@@ -1099,6 +1220,13 @@ def refresh_fixture_board_cache(
             "Fixture cache refresh tamamlandi",
             {"fixtures_seen": fixtures_seen, "fixtures_upserted": len(rows), "run_id": run_id},
         )
+        # Keep sitemap output fresh after fixture cache refresh jobs.
+        try:
+            from app.seo import invalidate_seo_cache
+
+            invalidate_seo_cache("sitemap:")
+        except Exception:
+            pass
         return {
             "run_id": run_id,
             "status": "completed",

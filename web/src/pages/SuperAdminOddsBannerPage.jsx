@@ -295,6 +295,9 @@ export default function SuperAdminOddsBannerPage() {
   const [latestSimulationRow, setLatestSimulationRow] = useState(() => readLastSimulationSnapshot());
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [generatingSlider, setGeneratingSlider] = useState(false);
+  const [generatingHighlights, setGeneratingHighlights] = useState(false);
+  const [sliderGenResult, setSliderGenResult] = useState(null);
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
@@ -673,12 +676,72 @@ export default function SuperAdminOddsBannerPage() {
     return null;
   }
 
+  const handleGenerateSliderImages = async () => {
+    setGeneratingSlider(true);
+    setSliderGenResult(null);
+    setError("");
+    setMessage("");
+
+    try {
+      const result = await apiRequest("/admin/slider/generate", {
+        method: "POST",
+        body: JSON.stringify({ count: 3 }),
+      });
+      
+      setSliderGenResult(result);
+      setMessage(`${result.generated} slider görsel başarıyla oluşturuldu!`);
+    } catch (err) {
+      setError(err.message || "Slider görselleri oluşturulamadı");
+    } finally {
+      setGeneratingSlider(false);
+    }
+  };
+
+  const handleGenerateMatchSliderImages = async () => {
+    setGeneratingSlider(true);
+    setSliderGenResult(null);
+    setError("");
+    setMessage("");
+
+    try {
+      const result = await apiRequest("/admin/slider/generate-with-matches", {
+        method: "POST",
+      });
+      
+      setSliderGenResult(result);
+      setMessage(`${result.generated} maç bazlı slider görsel başarıyla oluşturuldu!`);
+    } catch (err) {
+      setError(err.message || "Maç bazlı slider görselleri oluşturulamadı");
+    } finally {
+      setGeneratingSlider(false);
+    }
+  };
+
+  const handleGenerateDailyHighlights = async () => {
+    setGeneratingHighlights(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const result = await apiRequest("/admin/daily-highlights/generate", {
+        method: "POST",
+      });
+
+      setMessage(`${result.highlights_count} adet öne çıkan maç başarıyla oluşturuldu!`);
+      await loadSettings();
+    } catch (err) {
+      setError(err.message || "Öne çıkan maçlar oluşturulamadı");
+    } finally {
+      setGeneratingHighlights(false);
+    }
+  };
+
   return (
     <div className="container">
       <section className="card wide">
         <div className="row spread wrap">
           <div>
-            <h2>Gunun Yapay Zeka Tahminleri Yonetimi (Superadmin)</h2>
+            <h2>AI İçerik Yönetimi (Superadmin)</h2>
             <p className="help-text">
               Giris yapan kullanicilarin gordugu AI tahmin kartini ve one cikan oranlari buradan yonetebilirsin.
             </p>
@@ -698,6 +761,65 @@ export default function SuperAdminOddsBannerPage() {
 
         {error ? <div className="error">{error}</div> : null}
         {message ? <div className="success-box">{message}</div> : null}
+
+        <div className="card wide" style={{ marginBottom: "24px" }}>
+          <h3>🎨 Anasayfa Slider Görselleri (DALL-E 3)</h3>
+          <p className="help-text">
+            Slider görselleri iki şekilde oluşturulabilir: Genel tasarım veya bugünün maçlarına özel.
+          </p>
+          <div className="row wrap" style={{ gap: "12px", marginTop: "16px" }}>
+            <ActionButton
+              className="accent-gradient"
+              loading={generatingSlider}
+              loadingText="Görseller Oluşturuluyor..."
+              onClick={handleGenerateMatchSliderImages}
+            >
+              🏆 Maç Bazlı Slider Oluştur (Önerilen)
+            </ActionButton>
+            <ActionButton
+              className="secondary"
+              loading={generatingSlider}
+              loadingText="Görseller Oluşturuluyor..."
+              onClick={handleGenerateSliderImages}
+            >
+              🎨 Genel Tasarım Slider Oluştur
+            </ActionButton>
+          </div>
+          {sliderGenResult && (
+            <div className="success-box" style={{ marginTop: "16px" }}>
+              <strong>✅ {sliderGenResult.generated} görsel başarıyla oluşturuldu!</strong>
+              <div style={{ marginTop: "8px", fontSize: "12px" }}>
+                {sliderGenResult.images?.map((img, idx) => (
+                  <div key={idx} style={{ marginTop: "4px" }}>
+                    Görsel {idx + 1}: {img.url}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <p className="help-text" style={{ marginTop: "16px", fontSize: "12px" }}>
+            💡 Maç bazlı görseller: Bugünün en önemli 3 maçını seçer ve her biri için özel tasarım oluşturur (takım isimleri, oranlar, lig bilgisi dahil).<br />
+            💡 Genel tasarım: Futbol temalı soyut ve modern görseller oluşturur.<br />
+            ⏰ Otomatik: Her gün sabah 06:00'da maç bazlı görseller otomatik oluşturulur.
+          </p>
+        </div>
+
+        <div className="card wide" style={{ marginBottom: "24px" }}>
+          <h3>✨ Günlük Öne Çıkan Maçlar (AI)</h3>
+          <p className="help-text">
+            Bugünün öne çıkan AI tahminlerini otomatik olarak oluşturur.
+          </p>
+          <div className="row wrap" style={{ gap: "12px", marginTop: "16px" }}>
+            <ActionButton
+              className="accent-gradient"
+              loading={generatingHighlights}
+              loadingText="Öne çıkan maçlar oluşturuluyor..."
+              onClick={handleGenerateDailyHighlights}
+            >
+              ⚡ Öne Çıkanları Oluştur
+            </ActionButton>
+          </div>
+        </div>
 
         <div className="odds-banner-admin-grid">
           <div className="card">

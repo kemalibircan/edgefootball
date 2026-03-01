@@ -9,7 +9,7 @@ import {
   sortVisibleModels,
 } from "../lib/modelCatalog";
 import { CREDIT_PACKAGES, PAYMENT_WALLETS } from "../lib/tokenPackages";
-import { useAiChat } from "../state/chat/AiChatContext";
+import { useChat } from "../contexts/ChatContext";
 import DashboardAuthenticatedPage from "./dashboard/DashboardAuthenticatedPage";
 import DashboardLoadingPage from "./dashboard/DashboardLoadingPage";
 import DashboardModelsPage from "./dashboard/DashboardModelsPage";
@@ -61,6 +61,7 @@ const MODEL_CATALOG_FILTERS = [
   { value: "ready", label: "Hazir Modeller" },
   { value: "mine", label: "Kendi Modellerim" },
 ];
+const AUTH_BOOTSTRAP_TIMEOUT_MS = 2500;
 
 function getFixtureDateRangeLimits() {
   return {
@@ -520,7 +521,7 @@ function buildLastSimulationSnapshot(fixture, simulationResult) {
 
 export default function DashboardPage({ mode = "dashboard" }) {
   const isAdminRouteMode = mode === "models" || mode === "admin";
-  const { askFromAction } = useAiChat();
+  const { askFromAction } = useChat();
 
   const [overview, setOverview] = useState(null);
   const [recentFeatures, setRecentFeatures] = useState([]);
@@ -2211,18 +2212,59 @@ export default function DashboardPage({ mode = "dashboard" }) {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    let settled = false;
+    let watchdogTimer = null;
+
+    const settle = (fn) => {
+      if (cancelled || settled) return;
+      settled = true;
+      if (watchdogTimer) {
+        window.clearTimeout(watchdogTimer);
+      }
+      if (typeof fn === "function") {
+        fn();
+      }
+      setAuthReady(true);
+    };
+
     const token = readAuthToken();
     if (!token) {
+      setCurrentUser(null);
       setAuthReady(true);
-      return;
+      return () => {
+        cancelled = true;
+      };
     }
-    loadCurrentUser()
-      .catch((err) => {
-        clearAuthToken();
+
+    watchdogTimer = window.setTimeout(() => {
+      settle(() => {
         setCurrentUser(null);
-        setError(err.message || "Oturum gecersiz, lutfen tekrar giris yap.");
+        setError("Oturum kontrolu zaman asimina ugradi. Misafir gorunumu gosteriliyor.");
+      });
+    }, AUTH_BOOTSTRAP_TIMEOUT_MS);
+
+    loadCurrentUser()
+      .then((profile) => {
+        settle(() => {
+          setCurrentUser(profile || null);
+          setError("");
+        });
       })
-      .finally(() => setAuthReady(true));
+      .catch((err) => {
+        settle(() => {
+          clearAuthToken();
+          setCurrentUser(null);
+          setError(err.message || "Oturum gecersiz, lutfen tekrar giris yap.");
+        });
+      });
+
+    return () => {
+      cancelled = true;
+      if (watchdogTimer) {
+        window.clearTimeout(watchdogTimer);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -2555,6 +2597,17 @@ export default function DashboardPage({ mode = "dashboard" }) {
 
   if (mode === "models") {
     return <DashboardModelsPage dashboard={dashboard} />;
+  }
+
+  if (mode === "dashboard") {
+    return (
+      <GuestLanding
+        apiBase={API_BASE}
+        featuredOddsRows={featuredOddsRows}
+        isLoggedIn
+        isManager={isManager}
+      />
+    );
   }
 
   return <DashboardAuthenticatedPage dashboard={dashboard} />;

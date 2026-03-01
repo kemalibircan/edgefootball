@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ActionButton from "../components/dashboard/ActionButton";
 import AiTokenPackagesSection from "../components/token/AiTokenPackagesSection";
-import { uiText } from "../i18n/terms.tr";
+import { useLanguage } from "../contexts/LanguageContext";
 import { CREDIT_PACKAGES, PAYMENT_WALLETS } from "../lib/tokenPackages";
 
 const API_BASE = String(import.meta.env.VITE_API_BASE_URL || "http://localhost:8001").replace(/\/+$/, "");
@@ -15,6 +15,7 @@ function readAuthToken() {
 
 export default function TokenPurchasePage() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [copiedWallet, setCopiedWallet] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -40,21 +41,21 @@ export default function TokenPurchasePage() {
       setCopiedWallet(key);
       window.setTimeout(() => setCopiedWallet(""), 1400);
     } catch (_err) {
-      setError(uiText.tokenPurchase.errors.copyFailed);
+      setError(t.tokenPurchase.errors.copyFailed);
     }
   };
 
   const submitPaymentNotice = async () => {
     const transactionId = String(paymentForm.transaction_id || "").trim();
     if (!transactionId) {
-      setError(uiText.tokenPurchase.errors.transactionRequired);
+      setError(t.tokenPurchase.errors.transactionRequired);
       setSuccess("");
       return;
     }
 
     const token = readAuthToken();
     if (!token) {
-      setError(uiText.tokenPurchase.errors.loginRequired);
+      setError(t.tokenPurchase.errors.loginRequired);
       setSuccess("");
       navigate("/login");
       return;
@@ -87,9 +88,9 @@ export default function TokenPurchasePage() {
       }
 
       setPaymentForm((prev) => ({ ...prev, transaction_id: "", note: "" }));
-      setSuccess(uiText.tokenPurchase.success.submitted);
+      setSuccess(t.tokenPurchase.success.submitted);
     } catch (err) {
-      const message = err instanceof Error ? err.message : uiText.tokenPurchase.errors.submitFailed;
+      const message = err instanceof Error ? err.message : t.tokenPurchase.errors.submitFailed;
       setError(message);
     } finally {
       setSubmitting(false);
@@ -100,16 +101,16 @@ export default function TokenPurchasePage() {
     <div className="container">
       <section className="card package-zone in-app">
         <AiTokenPackagesSection
-          title={uiText.tokenPurchase.title}
-          description={uiText.tokenPurchase.description}
+          title={t.tokenPurchase.title}
+          description={t.tokenPurchase.description}
           packages={CREDIT_PACKAGES}
           wallets={PAYMENT_WALLETS}
           copiedWallet={copiedWallet}
           onCopyWallet={copyWalletAddress}
         />
 
-        <h3>{uiText.tokenPurchase.noticeTitle}</h3>
-        <p className="help-text">{uiText.tokenPurchase.noticeHelp}</p>
+        <h3>{t.tokenPurchase.noticeTitle}</h3>
+        <p className="help-text">{t.tokenPurchase.noticeHelp}</p>
         {error ? <div className="error">{error}</div> : null}
         {success ? <div className="success-box">{success}</div> : null}
 
@@ -132,12 +133,12 @@ export default function TokenPurchasePage() {
 
         <div className="row wrap">
           <input
-            placeholder={uiText.tokenPurchase.form.transactionIdPlaceholder}
+            placeholder={t.tokenPurchase.form.transactionIdPlaceholder}
             value={paymentForm.transaction_id}
             onChange={(e) => setPaymentForm((prev) => ({ ...prev, transaction_id: e.target.value }))}
           />
           <input
-            placeholder={uiText.tokenPurchase.form.telegramPlaceholder}
+            placeholder={t.tokenPurchase.form.telegramPlaceholder}
             value={paymentForm.telegram_contact}
             onChange={(e) => setPaymentForm((prev) => ({ ...prev, telegram_contact: e.target.value }))}
           />
@@ -145,7 +146,7 @@ export default function TokenPurchasePage() {
 
         <textarea
           rows={3}
-          placeholder={uiText.tokenPurchase.form.notePlaceholder}
+          placeholder={t.tokenPurchase.form.notePlaceholder}
           value={paymentForm.note}
           onChange={(e) => setPaymentForm((prev) => ({ ...prev, note: e.target.value }))}
         />
@@ -154,10 +155,10 @@ export default function TokenPurchasePage() {
           <ActionButton
             className="accent-gradient"
             loading={submitting}
-            loadingText={uiText.tokenPurchase.form.submitting}
+            loadingText={t.tokenPurchase.form.submitting}
             onClick={submitPaymentNotice}
           >
-            {uiText.tokenPurchase.form.submit}
+            {t.tokenPurchase.form.submit}
           </ActionButton>
         </div>
       </section>

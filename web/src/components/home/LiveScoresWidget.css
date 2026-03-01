@@ -1,0 +1,361 @@
+.live-scores-widget {
+  width: 100%;
+  padding: 2rem 0;
+  background: linear-gradient(
+    180deg,
+    rgba(185, 247, 56, 0.02) 0%,
+    transparent 100%
+  );
+}
+
+.live-scores-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+/* Header */
+.live-scores-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding: 0 0.5rem;
+}
+
+.live-scores-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.live-indicator {
+  font-size: 1.25rem;
+  animation: pulse-live 2s ease-in-out infinite;
+}
+
+@keyframes pulse-live {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.live-scores-title h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.live-scores-update {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+/* Grid */
+.live-scores-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1rem;
+}
+
+/* Match Card */
+.live-match-card {
+  padding: 1.25rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.live-match-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--accent-lime) 0%,
+    var(--accent-lime-bright) 100%
+  );
+}
+
+.live-match-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg), var(--shadow-neon);
+}
+
+/* Match Header */
+.live-match-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.live-match-league {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.live-match-minute {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--accent-lime);
+  padding: 0.25rem 0.75rem;
+  background: var(--accent-lime-glow);
+  border-radius: 12px;
+}
+
+.pulse {
+  animation: pulse-minute 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-minute {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(0.98);
+  }
+}
+
+/* Teams */
+.live-match-teams {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.live-match-team {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.live-match-team .team-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: center;
+  line-height: 1.2;
+}
+
+/* Score */
+.live-match-score {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.score-number {
+  min-width: 2rem;
+  text-align: center;
+}
+
+.score-separator {
+  color: var(--text-muted);
+  font-size: 1.5rem;
+}
+
+/* Odds */
+.live-match-odds {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--glass-border);
+}
+
+.odds-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  border-radius: 8px;
+  background: var(--glass-bg);
+  transition: all 0.3s ease;
+}
+
+.odds-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.odds-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.odds-change-icon {
+  font-size: 0.875rem;
+  animation: bounce-icon 0.5s ease-in-out;
+}
+
+@keyframes bounce-icon {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+/* Oran değişim animasyonları */
+.odds-indicator.increase {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  animation: flash-increase 0.5s ease-in-out;
+}
+
+.odds-indicator.increase .odds-value {
+  color: var(--success);
+}
+
+.odds-indicator.increase .odds-change-icon {
+  color: var(--success);
+}
+
+.odds-indicator.decrease {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  animation: flash-decrease 0.5s ease-in-out;
+}
+
+.odds-indicator.decrease .odds-value {
+  color: var(--danger);
+}
+
+.odds-indicator.decrease .odds-change-icon {
+  color: var(--danger);
+}
+
+@keyframes flash-increase {
+  0%, 100% {
+    background: rgba(16, 185, 129, 0.15);
+  }
+  50% {
+    background: rgba(16, 185, 129, 0.3);
+  }
+}
+
+@keyframes flash-decrease {
+  0%, 100% {
+    background: rgba(239, 68, 68, 0.15);
+  }
+  50% {
+    background: rgba(239, 68, 68, 0.3);
+  }
+}
+
+/* Loading & Error States */
+.live-scores-loading,
+.live-scores-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  gap: 1rem;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--glass-border);
+  border-top-color: var(--accent-lime);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.live-scores-error p {
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.retry-button {
+  padding: 0.75rem 1.5rem;
+  background: var(--accent-lime);
+  color: var(--text-inverse);
+  border: none;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.retry-button:hover {
+  background: var(--accent-lime-bright);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-neon);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .live-scores-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .live-scores-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .live-match-score {
+    font-size: 1.75rem;
+  }
+
+  .live-match-team .team-name {
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .live-match-card {
+    padding: 1rem;
+  }
+
+  .live-match-teams {
+    gap: 0.5rem;
+  }
+
+  .live-match-score {
+    font-size: 1.5rem;
+  }
+
+  .odds-value {
+    font-size: 0.875rem;
+  }
+}

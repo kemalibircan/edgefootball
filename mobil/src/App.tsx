@@ -24,7 +24,11 @@ const queryClient = new QueryClient({
 export default function App() {
   const {colors, effectiveScheme} = useAppTheme();
   useEffect(() => {
-    configureGoogleSignIn();
+    try {
+      configureGoogleSignIn();
+    } catch (error) {
+      console.warn('Google Sign-In setup skipped:', error);
+    }
   }, []);
 
   const navTheme = useMemo(() => {

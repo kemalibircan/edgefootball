@@ -4,6 +4,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import type {MainTabParamList} from './types';
 import {HomeStack} from './HomeStack';
 import {CouponsScreen} from '../screens/coupon/CouponsScreen';
+import {MathGuideScreen} from '../screens/coupon/MathGuideScreen';
 import {SavedCouponsScreen} from '../screens/coupon/SavedCouponsScreen';
 import {ChatScreen} from '../screens/chat/ChatScreen';
 import {useAppTheme} from '../theme/useAppTheme';
@@ -13,6 +14,7 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 const ICON_MAP: Record<keyof MainTabParamList, {active: string; inactive: string}> = {
   HomeTab: {active: 'football', inactive: 'football-outline'},
   Coupons: {active: 'ticket', inactive: 'ticket-outline'},
+  MathGuide: {active: 'stats-chart', inactive: 'stats-chart-outline'},
   SavedCoupons: {active: 'albums', inactive: 'albums-outline'},
   Chat: {active: 'chatbubble', inactive: 'chatbubble-outline'},
 };
@@ -41,6 +43,7 @@ export function MainTabs() {
       })}>
       <Tab.Screen name="HomeTab" component={HomeStack} />
       <Tab.Screen name="Coupons" component={CouponsScreen} />
+      <Tab.Screen name="MathGuide" component={MathGuideScreen} />
       <Tab.Screen name="SavedCoupons" component={SavedCouponsScreen} />
       <Tab.Screen name="Chat" component={ChatScreen} />
     </Tab.Navigator>

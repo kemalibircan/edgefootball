@@ -7,6 +7,7 @@ export type AuthUser = {
   credits: number;
   is_active: boolean;
   advanced_mode_enabled?: boolean;
+  avatar_key?: string;
 };
 
 export type LoginResponse = {
@@ -18,6 +19,21 @@ export type LoginResponse = {
 export type ForgotPasswordResponse = {
   ok: boolean;
   message: string;
+};
+
+export type AvatarOption = {
+  key: string;
+  label: string;
+  image_url: string;
+  source_name: string;
+  source_url: string;
+  license_name: string;
+  license_url: string;
+};
+
+export type AvatarOptionsResponse = {
+  items: AvatarOption[];
+  supports_update?: boolean;
 };
 
 export type MarketOneXTwo = {
@@ -201,7 +217,87 @@ export type RiskCoupon = {
   total_odds?: number;
   unavailable?: boolean;
   warnings?: string[];
+  selection_policy?: 'strict' | 'safety_fallback' | 'risk_relax_fallback' | string;
+  candidate_counts?: {
+    strict_count?: number;
+    safety_count?: number;
+  };
+  safety_level_used?: number | null;
   matches: CouponMatch[];
+};
+
+export type MathCouponItem = {
+  coupon_id: string;
+  matches: CouponMatch[];
+  total_odds?: number;
+  edge_sum?: number;
+  suggested_stake_tl?: number;
+  expected_value_score?: number;
+  coupon_variant?: string;
+  [key: string]: unknown;
+};
+
+export type MathStrategy = {
+  target_odds_range?: {
+    min?: number;
+    max?: number;
+  };
+  stake_pct_range?: {
+    min?: number;
+    max?: number;
+  };
+  stake_tl_range?: {
+    min?: number;
+    max?: number;
+  };
+  suggested_stake_tl?: number;
+  items?: MathCouponItem[];
+  warnings?: string[];
+};
+
+export type MathMixBasket = {
+  target_odds_range?: {
+    min?: number;
+    max?: number;
+  };
+  allocation_tl?: number;
+  stake_tl?: number;
+  planned_count?: number;
+  generated_count?: number;
+  items?: MathCouponItem[];
+};
+
+export type MathSummary = {
+  bankroll_tl?: number;
+  include_math_coupons?: boolean;
+  generated_counts?: {
+    single_low_mid?: number;
+    double_system?: number;
+    mix_single?: number;
+    mix_double?: number;
+    mix_shot?: number;
+  };
+  warnings?: string[];
+};
+
+export type MathCouponsPayload = {
+  summary?: MathSummary;
+  single_low_mid?: MathStrategy;
+  double_system?: MathStrategy;
+  mix_portfolio?: {
+    allocation?: {
+      single_pct?: number;
+      double_pct?: number;
+      shot_pct?: number;
+    };
+    bankroll_tl?: number;
+    warnings?: string[];
+    baskets?: {
+      single?: MathMixBasket;
+      double?: MathMixBasket;
+      shot?: MathMixBasket;
+    };
+  };
 };
 
 export type CouponGenerateResponse = {
@@ -223,6 +319,7 @@ export type CouponTaskInfo = {
       medium?: RiskCoupon;
       high?: RiskCoupon;
     };
+    math_coupons?: MathCouponsPayload;
   };
 };
 

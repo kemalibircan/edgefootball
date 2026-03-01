@@ -1,0 +1,96 @@
+.odds-analysis-board {
+  padding: 60px 0;
+}
+
+.odds-loading {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-muted);
+}
+
+.odds-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.odds-card {
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.odds-card:hover {
+  transform: translateY(-2px);
+}
+
+.odds-card-header {
+  margin-bottom: 16px;
+}
+
+.odds-card-teams {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.odds-card-match {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.odds-card-league {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.odds-card-values {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.odds-value {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px;
+  background: var(--bg-navy-light);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.odds-value:hover {
+  border-color: var(--accent-lime);
+  box-shadow: 0 0 12px var(--accent-lime-glow);
+}
+
+.odds-value-label {
+  font-size: 10px;
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+
+.odds-value-odd {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent-lime);
+}
+
+.odds-card-action {
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .odds-grid {
+    grid-template-columns: 1fr;
+  }
+}

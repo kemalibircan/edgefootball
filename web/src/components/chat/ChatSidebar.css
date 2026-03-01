@@ -1,0 +1,86 @@
+.chat-sidebar-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 999;
+  animation: fade-in 0.2s ease;
+}
+
+.chat-sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 440px;
+  max-width: 100vw;
+  background: var(--bg-navy-deep);
+  border-left: 1px solid var(--glass-border);
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  animation: slide-in-right 0.3s ease;
+}
+
+.chat-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px;
+  border-bottom: 1px solid var(--glass-border);
+  background: var(--bg-navy-light);
+}
+
+.chat-sidebar-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-primary);
+}
+
+.chat-sidebar-title svg {
+  color: var(--accent-lime);
+}
+
+.chat-sidebar-title h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.chat-sidebar-close {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.chat-sidebar-close:hover {
+  background: var(--glass-hover);
+  border-color: var(--accent-lime);
+  color: var(--accent-lime);
+}
+
+.chat-sidebar-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .chat-sidebar {
+    width: 100vw;
+  }
+}

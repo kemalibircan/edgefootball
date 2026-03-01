@@ -9,6 +9,7 @@ from typing import Any, Optional
 
 from celery.result import AsyncResult
 from fastapi import APIRouter, Depends, HTTPException, status
+from loguru import logger
 import pandas as pd
 from pydantic import BaseModel, Field
 from sqlalchemy import create_engine, text
@@ -32,7 +33,7 @@ from app.auth import (
 )
 from app.config import Settings, get_settings
 from app.mailer import MailDeliveryError
-from app.fixture_board import get_fixture_cache_status, load_cached_fixture_summaries
+from app.fixture_board import get_fixture_board_page, get_fixture_cache_status, load_cached_fixture_summaries
 from app.league_model_bootstrap import get_league_model_status
 from app.league_model_routing import load_league_default_models, parse_league_model_ids
 from data.ingest import DEFAULT_SUPERLIG_LEAGUE_ID, get_league_data_pool_status
@@ -680,6 +681,16 @@ def _ensure_superadmin_permissions(current_user: AuthUser) -> None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bu islem sadece superadmin icindir.")
 
 
+def require_admin(current_user: AuthUser = Depends(get_current_user)) -> AuthUser:
+    _ensure_manager_permissions(current_user)
+    return current_user
+
+
+def require_superadmin(current_user: AuthUser = Depends(get_current_user)) -> AuthUser:
+    _ensure_superadmin_permissions(current_user)
+    return current_user
+
+
 def _ensure_role_assignment_allowed(current_user: AuthUser, target_role: str) -> None:
     if target_role == ROLE_SUPERADMIN and current_user.role != ROLE_SUPERADMIN:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Superadmin rolunu sadece superadmin verebilir.")
@@ -901,6 +912,150 @@ def _normalize_showcase_section_key(section_key: str) -> str:
         allowed = ", ".join(SHOWCASE_SECTION_KEYS)
         raise HTTPException(status_code=400, detail=f"Gecersiz section key: {section_key}. Beklenen: {allowed}")
     return normalized
+
+
+def replace_showcase_section_rows(
+    settings: Settings,
+    section_key: str,
+    rows: list[Any],
+    actor_user_id: int,
+) -> int:
+    normalized_key = _normalize_showcase_section_key(section_key)
+    engine = create_engine(settings.db_url)
+    _ensure_showcase_matches_table(engine)
+    now_utc = datetime.now(timezone.utc)
+    safe_actor_id = int(actor_user_id)
+
+    prepared_rows: list[dict[str, Any]] = []
+    for index, row in enumerate(rows or []):
+        if hasattr(row, "model_dump"):
+            payload = dict(row.model_dump())  # pydantic model
+        elif isinstance(row, dict):
+            payload = dict(row)
+        else:
+            continue
+
+        home_team_name = str(payload.get("home_team_name") or "").strip()
+        away_team_name = str(payload.get("away_team_name") or "").strip()
+        if not home_team_name or not away_team_name:
+            continue
+
+        try:
+            odd_home = float(payload.get("odd_home"))
+            odd_draw = float(payload.get("odd_draw"))
+            odd_away = float(payload.get("odd_away"))
+        except (TypeError, ValueError):
+            continue
+        if odd_home <= 1 or odd_draw <= 1 or odd_away <= 1:
+            continue
+
+        fixture_id_raw = payload.get("fixture_id")
+        try:
+            fixture_id = int(fixture_id_raw) if fixture_id_raw is not None else None
+        except (TypeError, ValueError):
+            fixture_id = None
+
+        kickoff_at_raw = payload.get("kickoff_at")
+        if isinstance(kickoff_at_raw, datetime):
+            kickoff_at = kickoff_at_raw
+        else:
+            kickoff_at = _parse_datetime(kickoff_at_raw)
+
+        def _optional_score(value: Any) -> Optional[int]:
+            if value is None or value == "":
+                return None
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return None
+
+        display_order_raw = payload.get("display_order")
+        try:
+            display_order = int(display_order_raw) if display_order_raw is not None else index
+        except (TypeError, ValueError):
+            display_order = index
+
+        prepared_rows.append(
+            {
+                "section_key": normalized_key,
+                "fixture_id": fixture_id,
+                "home_team_name": home_team_name,
+                "away_team_name": away_team_name,
+                "home_team_logo": str(payload.get("home_team_logo") or "").strip() or None,
+                "away_team_logo": str(payload.get("away_team_logo") or "").strip() or None,
+                "kickoff_at": kickoff_at,
+                "odd_home": odd_home,
+                "odd_draw": odd_draw,
+                "odd_away": odd_away,
+                "model_score_home": _optional_score(payload.get("model_score_home")),
+                "model_score_away": _optional_score(payload.get("model_score_away")),
+                "display_order": display_order,
+                "is_active": bool(payload.get("is_active", True)),
+                "created_by": safe_actor_id,
+                "updated_by": safe_actor_id,
+                "created_at": now_utc,
+                "updated_at": now_utc,
+            }
+        )
+
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                f"""
+                DELETE FROM {SHOWCASE_MATCHES_TABLE}
+                WHERE section_key = :section_key
+                """
+            ),
+            {"section_key": normalized_key},
+        )
+        for row in prepared_rows:
+            conn.execute(
+                text(
+                    f"""
+                    INSERT INTO {SHOWCASE_MATCHES_TABLE} (
+                        section_key,
+                        fixture_id,
+                        home_team_name,
+                        away_team_name,
+                        home_team_logo,
+                        away_team_logo,
+                        kickoff_at,
+                        odd_home,
+                        odd_draw,
+                        odd_away,
+                        model_score_home,
+                        model_score_away,
+                        display_order,
+                        is_active,
+                        created_by,
+                        updated_by,
+                        created_at,
+                        updated_at
+                    ) VALUES (
+                        :section_key,
+                        :fixture_id,
+                        :home_team_name,
+                        :away_team_name,
+                        :home_team_logo,
+                        :away_team_logo,
+                        :kickoff_at,
+                        :odd_home,
+                        :odd_draw,
+                        :odd_away,
+                        :model_score_home,
+                        :model_score_away,
+                        :display_order,
+                        :is_active,
+                        :created_by,
+                        :updated_by,
+                        :created_at,
+                        :updated_at
+                    )
+                    """
+                ),
+                row,
+            )
+    return len(prepared_rows)
 
 
 def _default_showcase_sections() -> dict[str, list[dict]]:
@@ -1749,27 +1904,50 @@ def get_fixtures_paged(
 ):
     safe_page = max(1, int(page))
     safe_page_size = max(1, min(int(page_size), 50))
-    payload = load_cached_fixture_summaries(
+    
+    # Use get_fixture_board_page to include odds data
+    target = date_from if date_from else (date.today() if upcoming_only else None)
+    payload = get_fixture_board_page(
         settings=settings,
         page=safe_page,
         page_size=safe_page_size,
         league_id=league_id,
-        upcoming_only=upcoming_only,
         q=q,
-        date_from=date_from,
-        date_to=date_to,
+        target_date=target,
         sort=sort,
+        game_type="all",
+        featured_only=False,
     )
-    paged = payload.get("items") or []
-    for item in paged:
-        item.pop("_sort_dt", None)
+    
+    # Convert board items to simpler public format
+    items = payload.get("items") or []
+    public_items = []
+    for item in items:
+        public_items.append({
+            "fixture_id": item.get("fixture_id"),
+            "league_id": item.get("league_id"),
+            "league_name": item.get("league_name"),
+            "starting_at": item.get("starting_at"),
+            "home_team_id": item.get("home_team_id"),
+            "away_team_id": item.get("away_team_id"),
+            "home_team_name": item.get("home_team_name"),
+            "away_team_name": item.get("away_team_name"),
+            "home_team_logo": item.get("home_team_logo"),
+            "away_team_logo": item.get("away_team_logo"),
+            "match_label": item.get("match_label"),
+            "is_upcoming": upcoming_only,
+            "status": item.get("status"),
+            "is_live": item.get("is_live"),
+            "markets": item.get("markets"),
+            "scores": item.get("scores"),
+        })
 
     return {
-        "page": int(payload.get("page") or safe_page),
-        "page_size": int(payload.get("page_size") or safe_page_size),
-        "total": int(payload.get("total") or 0),
-        "total_pages": int(payload.get("total_pages") or 1),
-        "items": paged,
+        "page": payload.get("page", safe_page),
+        "page_size": payload.get("page_size", safe_page_size),
+        "total": payload.get("total", 0),
+        "total_pages": payload.get("total_pages", 1),
+        "items": public_items,
     }
 
 
@@ -1830,89 +2008,12 @@ def upsert_showcase_section(
     current_user: AuthUser = Depends(get_current_user),
 ):
     _ensure_superadmin_permissions(current_user)
-    normalized_key = _normalize_showcase_section_key(section_key)
-    engine = create_engine(settings.db_url)
-    _ensure_showcase_matches_table(engine)
-    now_utc = datetime.now(timezone.utc)
-
-    with engine.begin() as conn:
-        conn.execute(
-            text(
-                f"""
-                DELETE FROM {SHOWCASE_MATCHES_TABLE}
-                WHERE section_key = :section_key
-                """
-            ),
-            {"section_key": normalized_key},
-        )
-        for index, row in enumerate(request.rows or []):
-            home_logo = (row.home_team_logo or "").strip() or None
-            away_logo = (row.away_team_logo or "").strip() or None
-            conn.execute(
-                text(
-                    f"""
-                    INSERT INTO {SHOWCASE_MATCHES_TABLE} (
-                        section_key,
-                        fixture_id,
-                        home_team_name,
-                        away_team_name,
-                        home_team_logo,
-                        away_team_logo,
-                        kickoff_at,
-                        odd_home,
-                        odd_draw,
-                        odd_away,
-                        model_score_home,
-                        model_score_away,
-                        display_order,
-                        is_active,
-                        created_by,
-                        updated_by,
-                        created_at,
-                        updated_at
-                    ) VALUES (
-                        :section_key,
-                        :fixture_id,
-                        :home_team_name,
-                        :away_team_name,
-                        :home_team_logo,
-                        :away_team_logo,
-                        :kickoff_at,
-                        :odd_home,
-                        :odd_draw,
-                        :odd_away,
-                        :model_score_home,
-                        :model_score_away,
-                        :display_order,
-                        :is_active,
-                        :created_by,
-                        :updated_by,
-                        :created_at,
-                        :updated_at
-                    )
-                    """
-                ),
-                {
-                    "section_key": normalized_key,
-                    "fixture_id": row.fixture_id,
-                    "home_team_name": row.home_team_name.strip(),
-                    "away_team_name": row.away_team_name.strip(),
-                    "home_team_logo": home_logo,
-                    "away_team_logo": away_logo,
-                    "kickoff_at": row.kickoff_at,
-                    "odd_home": float(row.odd_home),
-                    "odd_draw": float(row.odd_draw),
-                    "odd_away": float(row.odd_away),
-                    "model_score_home": row.model_score_home,
-                    "model_score_away": row.model_score_away,
-                    "display_order": int(row.display_order if row.display_order is not None else index),
-                    "is_active": bool(row.is_active),
-                    "created_by": int(current_user.id),
-                    "updated_by": int(current_user.id),
-                    "created_at": now_utc,
-                    "updated_at": now_utc,
-                },
-            )
+    replace_showcase_section_rows(
+        settings=settings,
+        section_key=section_key,
+        rows=list(request.rows or []),
+        actor_user_id=int(current_user.id),
+    )
 
     return load_showcase_sections(settings=settings, include_inactive=True)
 
@@ -2224,11 +2325,16 @@ def save_prediction(
     )
 
     with engine.begin() as conn:
+        created_by_value = int(current_user.id)
+        logger.info(
+            f"[SAVE_PREDICTION] Saving prediction for user_id={created_by_value}, "
+            f"fixture_id={request.fixture_id}, prediction_date={prediction_date}"
+        )
         prediction_id = int(
             conn.execute(
                 insert_sql,
                 {
-                    "created_by": int(current_user.id),
+                    "created_by": created_by_value,
                     "fixture_id": int(fixture_summary.get("fixture_id") or request.fixture_id),
                     "league_id": fixture_summary.get("league_id"),
                     "fixture_starting_at": fixture_summary.get("starting_at"),
@@ -2261,13 +2367,18 @@ def save_prediction(
             ).scalar_one()
         )
 
-    return {
+    result = {
         "prediction_id": prediction_id,
         "fixture_id": int(fixture_summary.get("fixture_id") or request.fixture_id),
         "match_label": fixture_summary.get("match_label"),
         "prediction_date": prediction_date,
         "status": "settled" if is_settled else "pending",
     }
+    logger.info(
+        f"[SAVE_PREDICTION] Successfully saved prediction_id={prediction_id} "
+        f"for user_id={created_by_value}"
+    )
+    return result
 
 
 @router.get("/predictions/daily")
@@ -2319,6 +2430,11 @@ def get_daily_predictions(
         total = int(conn.execute(count_sql, params).scalar_one())
         rows = conn.execute(list_sql, params).mappings().all()
         items = [_prediction_row_to_dict(dict(row)) for row in rows]
+        
+        logger.info(
+            f"[GET_DAILY_PREDICTIONS] user_id={current_user.id}, day={target_day}, "
+            f"mine_only={mine_only}, league_id={league_id}, found={len(items)} predictions"
+        )
 
         refreshed = 0
         if auto_refresh_results:
@@ -2339,6 +2455,80 @@ def get_daily_predictions(
         "total_pages": total_pages,
         "refreshed_count": refreshed if auto_refresh_results else 0,
         "items": items,
+    }
+
+
+@router.get("/predictions/list")
+def get_predictions_list(
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    mine_only: bool = True,
+    archive: bool = False,
+    page: int = 1,
+    page_size: int = 20,
+    settings: Settings = Depends(get_settings),
+    current_user: AuthUser = Depends(get_current_user),
+):
+    """List saved predictions with optional date range and archive filter (past vs current fixtures)."""
+    safe_page = max(1, page)
+    safe_page_size = max(1, min(page_size, 100))
+    offset = (safe_page - 1) * safe_page_size
+
+    engine = create_engine(settings.db_url)
+    _ensure_saved_predictions_table(engine)
+
+    where_parts: list[str] = []
+    params: dict[str, Any] = {
+        "limit": safe_page_size,
+        "offset": offset,
+    }
+    if date_from is not None:
+        where_parts.append("prediction_date >= :date_from")
+        params["date_from"] = date_from
+    if date_to is not None:
+        where_parts.append("prediction_date <= :date_to")
+        params["date_to"] = date_to
+    if mine_only:
+        where_parts.append("created_by = :created_by")
+        params["created_by"] = int(current_user.id)
+
+    if archive:
+        where_parts.append(
+            "((fixture_starting_at IS NOT NULL AND fixture_starting_at < NOW()) "
+            "OR (fixture_date IS NOT NULL AND fixture_date < CURRENT_DATE))"
+        )
+    else:
+        where_parts.append(
+            "((fixture_starting_at IS NULL OR fixture_starting_at >= NOW()) "
+            "AND (fixture_date IS NULL OR fixture_date >= CURRENT_DATE))"
+        )
+
+    where_clause = " AND ".join(where_parts)
+    count_sql = text(f"SELECT COUNT(*) FROM {SAVED_PREDICTIONS_TABLE} WHERE {where_clause}")
+    list_sql = text(
+        f"""
+        SELECT *
+        FROM {SAVED_PREDICTIONS_TABLE}
+        WHERE {where_clause}
+        ORDER BY fixture_starting_at DESC NULLS LAST, prediction_created_at DESC
+        LIMIT :limit
+        OFFSET :offset
+        """
+    )
+
+    with engine.connect() as conn:
+        total = int(conn.execute(count_sql, params).scalar_one())
+        rows = conn.execute(list_sql, params).mappings().all()
+        items = [_prediction_row_to_dict(dict(row)) for row in rows]
+
+    total_pages = max(1, ceil(total / safe_page_size)) if total else 1
+    return {
+        "items": items,
+        "total": total,
+        "page": safe_page,
+        "page_size": safe_page_size,
+        "total_pages": total_pages,
+        "archive": archive,
     }
 
 
@@ -2363,6 +2553,223 @@ def refresh_prediction_result(
         "update": updated,
         "record": _prediction_row_to_dict(dict(refreshed_row)) if refreshed_row else None,
     }
+
+
+@router.get("/predictions/stats")
+def get_prediction_statistics(
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    league_id: Optional[int] = None,
+    settings: Settings = Depends(get_settings),
+    current_user: AuthUser = Depends(get_current_user),
+):
+    """
+    Get prediction statistics for the current user.
+    Returns accuracy metrics, outcome breakdowns, and league-specific stats.
+    """
+    engine = create_engine(settings.db_url)
+    _ensure_saved_predictions_table(engine)
+
+    # Build WHERE clause
+    where_clauses = ["created_by = :user_id"]
+    params = {"user_id": int(current_user.id)}
+
+    if date_from:
+        where_clauses.append("prediction_date >= :date_from")
+        params["date_from"] = date_from
+    if date_to:
+        where_clauses.append("prediction_date <= :date_to")
+        params["date_to"] = date_to
+    if league_id:
+        where_clauses.append("league_id = :league_id")
+        params["league_id"] = league_id
+
+    where_sql = " AND ".join(where_clauses)
+
+    with engine.begin() as conn:
+        # Overall statistics
+        overall_sql = text(
+            f"""
+            SELECT
+                COUNT(*) as total_predictions,
+                COUNT(*) FILTER (WHERE status = 'settled') as settled_predictions,
+                COUNT(*) FILTER (WHERE status = 'pending') as pending_predictions,
+                COUNT(*) FILTER (WHERE is_correct = true) as correct_predictions,
+                CASE
+                    WHEN COUNT(*) FILTER (WHERE status = 'settled') > 0
+                    THEN CAST(COUNT(*) FILTER (WHERE is_correct = true) AS FLOAT) /
+                         CAST(COUNT(*) FILTER (WHERE status = 'settled') AS FLOAT)
+                    ELSE 0.0
+                END as accuracy_rate
+            FROM {SAVED_PREDICTIONS_TABLE}
+            WHERE {where_sql}
+            """
+        )
+        overall = conn.execute(overall_sql, params).mappings().first()
+
+        # By outcome statistics
+        outcome_sql = text(
+            f"""
+            SELECT
+                prediction_outcome,
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE is_correct = true) as correct,
+                CASE
+                    WHEN COUNT(*) FILTER (WHERE status = 'settled') > 0
+                    THEN CAST(COUNT(*) FILTER (WHERE is_correct = true) AS FLOAT) /
+                         CAST(COUNT(*) FILTER (WHERE status = 'settled') AS FLOAT)
+                    ELSE 0.0
+                END as accuracy
+            FROM {SAVED_PREDICTIONS_TABLE}
+            WHERE {where_sql} AND status = 'settled' AND prediction_outcome IS NOT NULL
+            GROUP BY prediction_outcome
+            """
+        )
+        by_outcome_rows = conn.execute(outcome_sql, params).mappings().all()
+
+        # By league statistics (if no specific league filter)
+        by_league = []
+        if not league_id:
+            league_sql = text(
+                f"""
+                SELECT
+                    league_id,
+                    COUNT(*) as total,
+                    COUNT(*) FILTER (WHERE is_correct = true) as correct,
+                    CASE
+                        WHEN COUNT(*) FILTER (WHERE status = 'settled') > 0
+                        THEN CAST(COUNT(*) FILTER (WHERE is_correct = true) AS FLOAT) /
+                             CAST(COUNT(*) FILTER (WHERE status = 'settled') AS FLOAT)
+                        ELSE 0.0
+                    END as accuracy
+                FROM {SAVED_PREDICTIONS_TABLE}
+                WHERE {where_sql} AND status = 'settled' AND league_id IS NOT NULL
+                GROUP BY league_id
+                ORDER BY total DESC
+                """
+            )
+            by_league_rows = conn.execute(league_sql, params).mappings().all()
+            by_league = [
+                {
+                    "league_id": row["league_id"],
+                    "total": row["total"],
+                    "correct": row["correct"],
+                    "accuracy": float(row["accuracy"]),
+                }
+                for row in by_league_rows
+            ]
+
+    # Format outcome breakdown
+    by_outcome = {}
+    for row in by_outcome_rows:
+        outcome = row["prediction_outcome"]
+        by_outcome[outcome] = {
+            "total": row["total"],
+            "correct": row["correct"],
+            "accuracy": float(row["accuracy"]),
+        }
+
+    return {
+        "total_predictions": overall["total_predictions"],
+        "settled_predictions": overall["settled_predictions"],
+        "pending_predictions": overall["pending_predictions"],
+        "correct_predictions": overall["correct_predictions"],
+        "accuracy_rate": float(overall["accuracy_rate"]),
+        "by_outcome": by_outcome,
+        "by_league": by_league,
+    }
+
+
+@router.post("/predictions/bulk-refresh")
+def bulk_refresh_predictions(
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    prediction_ids: Optional[list[int]] = None,
+    settings: Settings = Depends(get_settings),
+    current_user: AuthUser = Depends(get_current_user),
+):
+    """
+    Bulk refresh actual results for predictions.
+    Can filter by date range or specific prediction IDs.
+    """
+    engine = create_engine(settings.db_url)
+    _ensure_saved_predictions_table(engine)
+
+    # Build WHERE clause
+    where_clauses = ["created_by = :user_id", "status = 'pending'"]
+    params = {"user_id": int(current_user.id)}
+
+    if prediction_ids:
+        placeholders = ",".join([f":id_{i}" for i in range(len(prediction_ids))])
+        where_clauses.append(f"id IN ({placeholders})")
+        for i, pred_id in enumerate(prediction_ids):
+            params[f"id_{i}"] = pred_id
+    else:
+        if date_from:
+            where_clauses.append("fixture_date >= :date_from")
+            params["date_from"] = date_from
+        if date_to:
+            where_clauses.append("fixture_date <= :date_to")
+            params["date_to"] = date_to
+
+    where_sql = " AND ".join(where_clauses)
+
+    select_sql = text(f"SELECT * FROM {SAVED_PREDICTIONS_TABLE} WHERE {where_sql}")
+
+    updated_count = 0
+    updated_predictions = []
+
+    with engine.begin() as conn:
+        rows = conn.execute(select_sql, params).mappings().all()
+        for row in rows:
+            row_dict = dict(row)
+            updated = _refresh_saved_prediction_result(conn, settings, row_dict)
+            if updated:
+                updated_count += 1
+                # Fetch updated row
+                refreshed = conn.execute(
+                    text(f"SELECT * FROM {SAVED_PREDICTIONS_TABLE} WHERE id = :id"),
+                    {"id": row_dict["id"]},
+                ).mappings().first()
+                if refreshed:
+                    updated_predictions.append(_prediction_row_to_dict(dict(refreshed)))
+
+    return {
+        "refreshed_count": updated_count,
+        "updated_predictions": updated_predictions,
+    }
+
+
+@router.delete("/predictions/{prediction_id}")
+def delete_prediction(
+    prediction_id: int,
+    settings: Settings = Depends(get_settings),
+    current_user: AuthUser = Depends(get_current_user),
+):
+    """
+    Delete a prediction. Only the owner can delete their predictions.
+    """
+    engine = create_engine(settings.db_url)
+    _ensure_saved_predictions_table(engine)
+
+    with engine.begin() as conn:
+        # Check if prediction exists and belongs to user
+        select_sql = text(
+            f"SELECT id, created_by FROM {SAVED_PREDICTIONS_TABLE} WHERE id = :id LIMIT 1"
+        )
+        row = conn.execute(select_sql, {"id": prediction_id}).mappings().first()
+
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Prediction not found: {prediction_id}")
+
+        if row["created_by"] != int(current_user.id):
+            raise HTTPException(status_code=403, detail="You can only delete your own predictions")
+
+        # Delete the prediction
+        delete_sql = text(f"DELETE FROM {SAVED_PREDICTIONS_TABLE} WHERE id = :id")
+        conn.execute(delete_sql, {"id": prediction_id})
+
+    return {"success": True, "prediction_id": prediction_id}
 
 
 @router.post("/tasks/ingest", response_model=TaskInfo)

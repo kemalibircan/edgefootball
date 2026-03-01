@@ -125,6 +125,15 @@ GOOGLE_IOS_CLIENT_ID=<IOS_CLIENT_ID>
 4. iOS URL scheme degerini `mobil/ios/mobil/Info.plist` icindeki
 `com.googleusercontent.apps.REPLACE_WITH_IOS_REVERSED_CLIENT_ID`
 placeholder alanina yaz.
+5. Web frontend icin `GOOGLE_WEB_CLIENT_ID` veya `VITE_GOOGLE_WEB_CLIENT_ID` degerini ayarla.
+   Vite konfigu bu iki anahtari da destekler ve root `.env` degerini okuyabilir.
+   Docker kullaniyorsan `docker-compose.yml` icindeki `web` servisi bu degeri otomatik aktarir.
+6. Backend `.env` icindeki `GOOGLE_OAUTH_CLIENT_IDS` listesinde web client ID de bulunmalidir.
+7. Env degisikligi sonrasi web dev server'i yeniden baslat:
+```bash
+cd web
+npm run dev -- --host 0.0.0.0 --port 3001
+```
 
 ### Gmail SMTP (App Password) Ornegi
 1. Google hesabinda 2FA aktif et.
