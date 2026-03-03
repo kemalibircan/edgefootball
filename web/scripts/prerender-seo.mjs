@@ -3,7 +3,8 @@ import path from "node:path";
 import process from "node:process";
 
 const WORKDIR = process.cwd();
-const API_BASE = String(process.env.VITE_API_BASE_URL || "http://localhost:8001").replace(/\/+$/, "");
+// Backend varsayılan portu 8000; env yoksa buna düş.
+const API_BASE = String(process.env.VITE_API_BASE_URL || "http://localhost:8000").replace(/\/+$/, "");
 const SITE_BASE = String(process.env.VITE_SITE_BASE_URL || "http://localhost:3001").replace(/\/+$/, "");
 const OUTPUT_DIR = path.join(WORKDIR, "prerender");
 const TEMPLATE_PATH = path.join(WORKDIR, "index.html");

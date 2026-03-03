@@ -246,6 +246,35 @@ export default function AdminHomePage() {
     [isManager]
   );
 
+  const resolveTodayLocalISO = () => {
+    const base = new Date();
+    const local = new Date(base.getTime() - base.getTimezoneOffset() * 60 * 1000);
+    return local.toISOString().slice(0, 10);
+  };
+
+  const refreshTodayFixturesCache = async () => {
+    const todayIso = resolveTodayLocalISO();
+    await runOperation(
+      "fixtures-cache-refresh-today",
+      {
+        start: 18,
+        stage: "Bugunun mac cache'i yenileniyor",
+        successStage: "Mac cache guncellendi",
+        clearMs: 1600,
+      },
+      async () => {
+        await apiRequest("/admin/tasks/fixtures-cache-refresh", {
+          method: "POST",
+          body: JSON.stringify({
+            date_from: todayIso,
+            date_to: todayIso,
+            league_ids: null,
+          }),
+        });
+      }
+    );
+  };
+
   useEffect(() => {
     if (isSuperAdmin) loadSliderImages(true);
   }, [isSuperAdmin, loadSliderImages]);
@@ -457,6 +486,27 @@ export default function AdminHomePage() {
   return (
     <div className="container">
       {error ? <div className="error">{error}</div> : null}
+
+      {isManager ? (
+        <section className="grid">
+          <div className="card">
+            <h2>Bugunun Mac Cache'i</h2>
+            <p className="help-text">
+              SportMonks'tan bugunun maclarini cekip fixture cache tablosuna kaydeder. Public sayfalarda bugun icin bu
+              cache kullanilir. Islemi gunde bir kez calistirman genelde yeterlidir.
+            </p>
+            <OperationStatus op={operationFor("fixtures-cache-refresh-today")} />
+            <ActionButton
+              loading={isLoading("fixtures-cache-refresh-today")}
+              loadingText="Cache yenileniyor..."
+              onClick={refreshTodayFixturesCache}
+              disabled={isLoading("fixtures-cache-refresh-today")}
+            >
+              Bugunun Maclarini Yenile (SportMonks)
+            </ActionButton>
+          </div>
+        </section>
+      ) : null}
 
       {isSuperAdmin ? (
         <section className="grid">

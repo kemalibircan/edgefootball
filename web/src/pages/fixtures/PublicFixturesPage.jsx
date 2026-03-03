@@ -4,7 +4,8 @@ import SeoHead from "../../components/seo/SeoHead";
 import JsonLd from "../../components/seo/JsonLd";
 import { slugify, normalizeLocale } from "../../lib/seo";
 
-const API_BASE = String(import.meta.env.VITE_API_BASE_URL || "http://localhost:8001").replace(/\/+$/, "");
+// Backend varsayılan portu 8000; env yoksa buna düş.
+const API_BASE = String(import.meta.env.VITE_API_BASE_URL || "http://localhost:8000").replace(/\/+$/, "");
 
 function formatKickoff(value, locale) {
   if (!value) return "-";

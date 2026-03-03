@@ -198,6 +198,24 @@ curl -X POST -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/js
 4. Re-check `/admin/league-models/status` and verify defaults are ready before go-live.
 5. Production deployment oncesi tum acik API/SMTP anahtarlarini rotate edin ve `.env` dosyasinda gecici deger birakmayin.
 
+## Post-Deploy DB Stabilization Checklist
+1. Startup migration logs:
+```bash
+docker logs footballai-api-1 | grep "Startup migrations completed"
+docker logs footballai-worker-1 | grep "Startup migrations completed"
+```
+2. Deadlock kontrolu:
+```bash
+docker logs footballai-api-1 | grep -i "DeadlockDetected"
+docker logs footballai-db-1 | grep -i "deadlock detected"
+```
+Beklenen sonuc: cikti olmamali.
+3. Connection saturation kontrolu:
+```bash
+docker logs footballai-db-1 | grep -i "too many clients already"
+```
+Beklenen sonuc: cikti olmamali.
+
 ## Dummy Mode
 Set `DUMMY_MODE=true` (and/or empty token). Client returns synthetic fixture payload so end-to-end flow works offline.
 

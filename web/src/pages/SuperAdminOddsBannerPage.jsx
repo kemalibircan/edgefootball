@@ -2,9 +2,9 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ActionButton from "../components/dashboard/ActionButton";
 import DashboardLoadingPage from "./dashboard/DashboardLoadingPage";
+import { apiRequest, isAuthTerminalError } from "../lib/api";
+import { clearAuthToken, readAuthToken } from "../lib/auth";
 
-const API_BASE = String(import.meta.env.VITE_API_BASE_URL || "http://localhost:8001").replace(/\/+$/, "");
-const AUTH_TOKEN_KEY = "football_ai_access_token";
 const LAST_SIMULATION_STORAGE_KEY = "football_ai_last_simulation_snapshot";
 const MAX_IMAGE_INPUT_BYTES = 12 * 1024 * 1024;
 const IMAGE_MAX_DIMENSION = 1920;
@@ -86,17 +86,6 @@ const DEFAULT_ODDS_ROWS = Object.freeze([
     model_score_away: "0",
   },
 ]);
-
-function readAuthToken() {
-  if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(AUTH_TOKEN_KEY) || "";
-}
-
-function clearAuthToken() {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(AUTH_TOKEN_KEY);
-  window.dispatchEvent(new Event("auth-token-changed"));
-}
 
 function toDateTimeLocalValue(value) {
   if (!value) return "";
@@ -215,29 +204,6 @@ function normalizeShowcaseOddsRows(payload) {
   return normalized;
 }
 
-async function apiRequest(path, options = {}) {
-  const headers = {
-    "Content-Type": "application/json",
-    ...(options?.headers || {}),
-  };
-  const token = readAuthToken();
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-  });
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    if (response.status === 401) {
-      clearAuthToken();
-    }
-    throw new Error(payload.detail || `Request failed: ${response.status}`);
-  }
-  return response.json();
-}
-
 function fileToDataURL(file) {
   return new Promise((resolve, reject) => {
     if (!(file instanceof File)) {
@@ -332,8 +298,14 @@ export default function SuperAdminOddsBannerPage() {
         setCurrentUser(profile);
         await loadSettings();
       } catch (err) {
-        clearAuthToken();
-        navigate("/login", { replace: true });
+        const authTerminal = isAuthTerminalError(err) || !readAuthToken();
+        if (authTerminal) {
+          clearAuthToken("superadmin_bootstrap_auth_terminal");
+          navigate("/login", { replace: true });
+        } else {
+          setError(err.message || "Yetki bilgisi okunamadi. Lutfen tekrar deneyin.");
+          navigate("/admin", { replace: true });
+        }
       } finally {
         setAuthReady(true);
       }

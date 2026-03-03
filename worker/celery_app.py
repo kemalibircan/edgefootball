@@ -5,10 +5,12 @@ from typing import Dict, List, Optional
 
 from celery import Celery
 from celery.schedules import crontab
+from celery.signals import beat_init, worker_ready
 from loguru import logger
 from sqlalchemy import create_engine, text
 
 from app.config import get_settings
+from app.db_migrations import run_startup_migrations
 from app.coupon_builder import process_coupon_generation_run
 from app.fixture_board import refresh_fixture_board_cache
 from app.league_model_bootstrap import bootstrap_league_models
@@ -60,6 +62,16 @@ celery_app.conf.beat_schedule = {
         "kwargs": {"trigger_type": "scheduled"},
     },
 }
+
+
+@worker_ready.connect
+def _run_worker_startup_migrations(**_kwargs):
+    run_startup_migrations(settings)
+
+
+@beat_init.connect
+def _run_beat_startup_migrations(**_kwargs):
+    run_startup_migrations(settings)
 
 
 def _build_progress_callback(task):

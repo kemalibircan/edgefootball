@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { apiRequest, API_BASE } from "../../lib/api";
+import { apiRequest, API_BASE, logoutCurrentSession } from "../../lib/api";
 import { clearAuthToken, readAuthToken } from "../../lib/auth";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../contexts/ThemeContext";
@@ -13,6 +13,7 @@ import "./ProfileMenu.css";
 
 const AUTH_TOKEN_KEY = "football_ai_access_token";
 const SUPER_LIG_ID = 600;
+const PROFILE_REFRESH_INTERVAL_MS = 3 * 60 * 1000;
 
 function todayLocalISODate() {
   const now = new Date();
@@ -88,30 +89,50 @@ export default function SiteHeader() {
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
 
-    const onAuthChanged = () => {
+    const refreshAuthState = () => {
+      if (!readAuthToken()) {
+        setCurrentUser(null);
+        setSavedPredictionsCount(0);
+        return;
+      }
       loadCurrentUser({ silent: true });
       loadSavedPredictionsCount();
     };
+
+    const onAuthChanged = () => {
+      refreshAuthState();
+    };
+
     const onStorage = (event) => {
       if (!event.key || event.key === AUTH_TOKEN_KEY) {
-        loadCurrentUser({ silent: true });
+        refreshAuthState();
       }
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refreshAuthState();
+      }
+    };
+    const onWindowFocus = () => {
+      refreshAuthState();
     };
 
     window.addEventListener("auth-token-changed", onAuthChanged);
     window.addEventListener("storage", onStorage);
+    window.addEventListener("focus", onWindowFocus);
+    document.addEventListener("visibilitychange", onVisibilityChange);
 
     const refreshTimer = window.setInterval(() => {
-      if (readAuthToken()) {
-        loadCurrentUser({ silent: true });
-        loadSavedPredictionsCount();
-      }
-    }, 30000);
+      if (document.visibilityState !== "visible") return;
+      refreshAuthState();
+    }, PROFILE_REFRESH_INTERVAL_MS);
 
     return () => {
       window.clearInterval(refreshTimer);
       window.removeEventListener("auth-token-changed", onAuthChanged);
       window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", onWindowFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [loadCurrentUser, loadSavedPredictionsCount]);
 
@@ -128,8 +149,13 @@ export default function SiteHeader() {
     }
   }, [profileMenuOpen]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setProfileMenuOpen(false);
+    try {
+      await logoutCurrentSession();
+    } catch (_err) {
+      // Local logout still proceeds if backend revoke call fails.
+    }
     clearAuthToken();
     setCurrentUser(null);
     setSavedPredictionsCount(0);

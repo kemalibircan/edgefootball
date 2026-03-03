@@ -6,6 +6,7 @@ import SliderShowcase from "../home/SliderShowcase";
 import AiFeaturedHighlights from "../home/AiFeaturedHighlights";
 import MatchPredictionCenter from "../home/MatchPredictionCenter";
 import OddsAnalysisBoard from "../home/OddsAnalysisBoard";
+import LiveLeagueFixturesBoard from "../home/LiveLeagueFixturesBoard";
 import ErrorBoundary from "../common/ErrorBoundary";
 import ActionButton from "../dashboard/ActionButton";
 import TeamBadge from "../dashboard/TeamBadge";
@@ -90,6 +91,9 @@ export default function GuestLanding({ apiBase, featuredOddsRows, isLoggedIn = f
       </ErrorBoundary>
       <ErrorBoundary fallback={null}>
         <OddsAnalysisBoard apiBase={apiBase} />
+      </ErrorBoundary>
+      <ErrorBoundary fallback={null}>
+        <LiveLeagueFixturesBoard />
       </ErrorBoundary>
     </div>
   );

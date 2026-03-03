@@ -12,7 +12,8 @@ import { readAuthToken } from "../lib/auth";
 import { normalizeLocale, slugify } from "../lib/seo";
 import "./FixtureDetailPage.css";
 
-const API_BASE = String(import.meta.env.VITE_API_BASE_URL || "http://localhost:8001").replace(/\/+$/, "");
+// Backend varsayılan portu 8000; env yoksa buna düş.
+const API_BASE = String(import.meta.env.VITE_API_BASE_URL || "http://localhost:8000").replace(/\/+$/, "");
 
 function toPositiveOdd(value) {
   const parsed = Number(value);

@@ -1,0 +1,165 @@
+.live-league-fixtures-section {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.live-league-fixtures-section .section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 10px;
+}
+
+.live-league-fixtures-section .section-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.live-league-fixtures-section .section-header .small-text {
+  color: var(--text-muted);
+}
+
+.live-league-fixtures-section .section-description {
+  margin: 0 0 10px 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.live-league-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.live-league-column {
+  border-radius: 12px;
+  border: 1px solid rgba(20, 90, 58, 0.24);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.live-league-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(241, 210, 102, 0.35);
+}
+
+.live-league-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #f3fff8;
+}
+
+.live-league-count {
+  font-size: 0.8rem;
+  color: #e0f2e9;
+  opacity: 0.8;
+}
+
+.live-league-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.live-fixture-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1.4fr) auto;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease,
+    background 0.16s ease;
+}
+
+.live-fixture-row:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(2, 16, 9, 0.8);
+  border-color: rgba(241, 210, 102, 0.7);
+  background: linear-gradient(135deg, rgba(8, 39, 26, 0.96), rgba(14, 73, 46, 0.96));
+}
+
+.live-fixture-main {
+  display: grid;
+  gap: 4px;
+}
+
+.live-fixture-teams {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.live-fixture-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: #cbe8da;
+}
+
+.live-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(248, 113, 113, 0.75);
+  color: #fecaca;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.live-fixture-odds {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 4px;
+  align-items: center;
+}
+
+.live-fixture-odds .live-odd {
+  width: 100%;
+}
+
+.live-fixture-open-detail {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+@media (max-width: 920px) {
+  .live-fixture-row {
+    grid-template-columns: minmax(0, 1.8fr) minmax(0, 1.6fr);
+  }
+
+  .live-fixture-open-detail {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .live-fixture-row {
+    grid-template-columns: minmax(0, 1.7fr) minmax(0, 1.3fr);
+  }
+}
+
+@media (max-width: 520px) {
+  .live-fixture-row {
+    grid-template-columns: 1fr;
+  }
+
+  .live-fixture-odds {
+    grid-auto-flow: row;
+  }
+}
+
+

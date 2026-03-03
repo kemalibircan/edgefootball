@@ -94,7 +94,7 @@ def test_avatar_options_returns_10_unique_items():
 
 
 def test_update_my_avatar_rejects_invalid_key(monkeypatch):
-    monkeypatch.setattr(auth, "create_engine", lambda db_url: _FakeEngine(_FakeConn()))
+    monkeypatch.setattr(auth, "get_engine", lambda settings: _FakeEngine(_FakeConn()))
     monkeypatch.setattr(auth, "ensure_auth_tables", lambda engine: None)
 
     with pytest.raises(HTTPException) as exc:
@@ -109,7 +109,7 @@ def test_update_my_avatar_rejects_invalid_key(monkeypatch):
 
 def test_update_my_avatar_persists_and_returns_user(monkeypatch):
     conn = _FakeConn()
-    monkeypatch.setattr(auth, "create_engine", lambda db_url: _FakeEngine(conn))
+    monkeypatch.setattr(auth, "get_engine", lambda settings: _FakeEngine(conn))
     monkeypatch.setattr(auth, "ensure_auth_tables", lambda engine: None)
 
     payload = auth.update_my_avatar(

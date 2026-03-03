@@ -5,7 +5,8 @@ import AiTokenPackagesSection from "../components/token/AiTokenPackagesSection";
 import { useLanguage } from "../contexts/LanguageContext";
 import { CREDIT_PACKAGES, PAYMENT_WALLETS } from "../lib/tokenPackages";
 
-const API_BASE = String(import.meta.env.VITE_API_BASE_URL || "http://localhost:8001").replace(/\/+$/, "");
+// Backend varsayılan portu 8000; env yoksa buna düş.
+const API_BASE = String(import.meta.env.VITE_API_BASE_URL || "http://localhost:8000").replace(/\/+$/, "");
 const AUTH_TOKEN_KEY = "football_ai_access_token";
 
 function readAuthToken() {
@@ -109,7 +110,25 @@ export default function TokenPurchasePage() {
           onCopyWallet={copyWalletAddress}
         />
 
-        <h3>{t.tokenPurchase.noticeTitle}</h3>
+        <div className="payment-summary" style={{ marginTop: 16 }}>
+          <h3>{selectedPackage?.title}</h3>
+          <p className="small-text">
+            {selectedPackage?.summary}{" "}
+            {typeof selectedPackage?.predictions === "number"
+              ? `(${selectedPackage.predictions} tahmin)`
+              : null}
+          </p>
+          <div className="row wrap" style={{ marginTop: 8 }}>
+            <div className="badge">
+              {selectedPackage?.price_tl} TL
+            </div>
+            {selectedPackage?.benefit_label ? (
+              <div className="badge secondary">{selectedPackage.benefit_label}</div>
+            ) : null}
+          </div>
+        </div>
+
+        <h3 style={{ marginTop: 20 }}>{t.tokenPurchase.noticeTitle}</h3>
         <p className="help-text">{t.tokenPurchase.noticeHelp}</p>
         {error ? <div className="error">{error}</div> : null}
         {success ? <div className="success-box">{success}</div> : null}
@@ -125,7 +144,10 @@ export default function TokenPurchasePage() {
               </option>
             ))}
           </select>
-          <select value={paymentForm.chain} onChange={(e) => setPaymentForm((prev) => ({ ...prev, chain: e.target.value }))}>
+          <select
+            value={paymentForm.chain}
+            onChange={(e) => setPaymentForm((prev) => ({ ...prev, chain: e.target.value }))}
+          >
             <option value="solana">Solana</option>
             <option value="ethereum">Ethereum</option>
           </select>

@@ -62,7 +62,7 @@ def _manager_user():
 
 def test_delete_rejected_payment_notice_allows_admin(monkeypatch):
     conn = _FakeConn({"id": 12, "status": "rejected"})
-    monkeypatch.setattr(admin, "create_engine", lambda db_url: _FakeEngine(conn))
+    monkeypatch.setattr(admin, "get_engine", lambda settings: _FakeEngine(conn))
     monkeypatch.setattr(admin, "_ensure_payment_notices_table", lambda engine: None)
 
     payload = admin.delete_rejected_payment_notice(
@@ -77,7 +77,7 @@ def test_delete_rejected_payment_notice_allows_admin(monkeypatch):
 
 def test_delete_rejected_payment_notice_rejects_non_rejected_status(monkeypatch):
     conn = _FakeConn({"id": 20, "status": "approved"})
-    monkeypatch.setattr(admin, "create_engine", lambda db_url: _FakeEngine(conn))
+    monkeypatch.setattr(admin, "get_engine", lambda settings: _FakeEngine(conn))
     monkeypatch.setattr(admin, "_ensure_payment_notices_table", lambda engine: None)
 
     with pytest.raises(admin.HTTPException) as exc:

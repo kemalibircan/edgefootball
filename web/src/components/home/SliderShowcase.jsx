@@ -76,43 +76,45 @@ export default function SliderShowcase({ apiBase }) {
 
   return (
     <section className="slider-showcase">
-      <div className="slider-container">
-        <div className="slider-track">
-          {sliderImages.map((image, index) => (
-            <div
-              key={index}
-              className={`slider-slide ${index === activeSlide ? "active" : ""}`}
-              style={{ backgroundImage: `url(${image})` }}
-            />
-          ))}
+      <div className="container">
+        <div className="slider-container">
+          <div className="slider-track">
+            {sliderImages.map((image, index) => (
+              <div
+                key={index}
+                className={`slider-slide ${index === activeSlide ? "active" : ""}`}
+                style={{ backgroundImage: `url(${image})` }}
+              />
+            ))}
+          </div>
+
+          {sliderImages.length > 1 ? (
+            <>
+              <button className="slider-nav slider-nav-prev" onClick={prevSlide} aria-label="Previous slide">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+              </button>
+
+              <button className="slider-nav slider-nav-next" onClick={nextSlide} aria-label="Next slide">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </button>
+
+              <div className="slider-dots">
+                {sliderImages.map((_, index) => (
+                  <button
+                    key={index}
+                    className={`slider-dot ${index === activeSlide ? "active" : ""}`}
+                    onClick={() => goToSlide(index)}
+                    aria-label={`Go to slide ${index + 1}`}
+                  />
+                ))}
+              </div>
+            </>
+          ) : null}
         </div>
-
-        {sliderImages.length > 1 ? (
-          <>
-            <button className="slider-nav slider-nav-prev" onClick={prevSlide} aria-label="Previous slide">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
-            </button>
-
-            <button className="slider-nav slider-nav-next" onClick={nextSlide} aria-label="Next slide">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
-            </button>
-
-            <div className="slider-dots">
-              {sliderImages.map((_, index) => (
-                <button
-                  key={index}
-                  className={`slider-dot ${index === activeSlide ? "active" : ""}`}
-                  onClick={() => goToSlide(index)}
-                  aria-label={`Go to slide ${index + 1}`}
-                />
-              ))}
-            </div>
-          </>
-        ) : null}
       </div>
     </section>
   );

@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     dalle_model: str = "dall-e-3"
     daily_generation_enabled: bool = True
     db_url: str = "postgresql://football:football@localhost:5432/football"
+    db_run_startup_migrations: bool = True
+    db_migrations_dir: str = "migrations"
     redis_url: str = "redis://localhost:6379/0"
     dummy_mode: bool = False
     log_level: str = "INFO"
@@ -32,7 +34,14 @@ class Settings(BaseSettings):
 
     # Auth & credit system
     auth_secret: str = "footballai-dev-secret-change-me"
+    auth_secret_fallbacks: str = ""
     auth_token_ttl_hours: int = 72
+    auth_access_token_ttl_minutes: int = 15
+    auth_refresh_token_ttl_days: int = 30
+    auth_refresh_cookie_name: str = "football_ai_refresh"
+    auth_cookie_secure: bool = False
+    auth_cookie_samesite: str = "lax"
+    auth_cookie_domain: Optional[str] = None
     auth_initial_credits: int = 100
     simulation_credit_cost: int = 7
     ai_commentary_credit_cost: int = 10

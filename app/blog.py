@@ -11,7 +11,7 @@ from sqlalchemy import bindparam, create_engine, text
 from sqlalchemy.exc import IntegrityError
 
 from app.admin import require_admin
-from app.auth import AuthUser, ensure_auth_tables
+from app.auth import AuthUser
 from app.config import Settings, get_settings
 from app.seo import invalidate_seo_cache
 
@@ -329,7 +329,6 @@ def _slugify(value: str) -> str:
 
 
 def ensure_blog_tables(engine) -> None:
-    ensure_auth_tables(engine)
     try:
         with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
             conn.execute(text("CREATE EXTENSION IF NOT EXISTS pgcrypto"))

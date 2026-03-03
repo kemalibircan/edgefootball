@@ -80,9 +80,8 @@ def test_set_payment_notice_status_grants_advanced_mode_once(monkeypatch):
         },
         user_advanced=False,
     )
-    monkeypatch.setattr(admin, "create_engine", lambda db_url: _FakeEngine(conn))
+    monkeypatch.setattr(admin, "get_engine", lambda settings: _FakeEngine(conn))
     monkeypatch.setattr(admin, "_ensure_payment_notices_table", lambda engine: None)
-    monkeypatch.setattr(admin, "ensure_auth_tables", lambda engine: None)
 
     settings = Settings(dummy_mode=True, sportmonks_api_token=None, advanced_mode_package_key="advanced-mode-500")
     request = admin.PaymentNoticeStatusRequest(status="approved", admin_note="ok")
@@ -119,9 +118,8 @@ def test_set_payment_notice_status_does_not_grant_for_other_packages(monkeypatch
         },
         user_advanced=False,
     )
-    monkeypatch.setattr(admin, "create_engine", lambda db_url: _FakeEngine(conn))
+    monkeypatch.setattr(admin, "get_engine", lambda settings: _FakeEngine(conn))
     monkeypatch.setattr(admin, "_ensure_payment_notices_table", lambda engine: None)
-    monkeypatch.setattr(admin, "ensure_auth_tables", lambda engine: None)
 
     payload = admin.set_payment_notice_status(
         notice_id=11,

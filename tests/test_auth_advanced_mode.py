@@ -63,7 +63,7 @@ def _current_user(enabled: bool) -> auth.AuthUser:
 
 def test_set_advanced_mode_blocks_self_upgrade(monkeypatch):
     conn = _FakeConn(current_enabled=False)
-    monkeypatch.setattr(auth, "create_engine", lambda db_url: _FakeEngine(conn))
+    monkeypatch.setattr(auth, "get_engine", lambda settings: _FakeEngine(conn))
     monkeypatch.setattr(auth, "ensure_auth_tables", lambda engine: None)
 
     with pytest.raises(auth.HTTPException) as exc:
@@ -80,7 +80,7 @@ def test_set_advanced_mode_blocks_self_upgrade(monkeypatch):
 
 def test_set_advanced_mode_allows_disable(monkeypatch):
     conn = _FakeConn(current_enabled=True)
-    monkeypatch.setattr(auth, "create_engine", lambda db_url: _FakeEngine(conn))
+    monkeypatch.setattr(auth, "get_engine", lambda settings: _FakeEngine(conn))
     monkeypatch.setattr(auth, "ensure_auth_tables", lambda engine: None)
 
     payload = auth.set_advanced_mode(
@@ -95,7 +95,7 @@ def test_set_advanced_mode_allows_disable(monkeypatch):
 
 def test_set_advanced_mode_idempotent_when_already_enabled(monkeypatch):
     conn = _FakeConn(current_enabled=True)
-    monkeypatch.setattr(auth, "create_engine", lambda db_url: _FakeEngine(conn))
+    monkeypatch.setattr(auth, "get_engine", lambda settings: _FakeEngine(conn))
     monkeypatch.setattr(auth, "ensure_auth_tables", lambda engine: None)
 
     payload = auth.set_advanced_mode(

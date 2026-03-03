@@ -24,6 +24,7 @@ const LegacyModelsRedirect = lazy(() => import("./pages/routing/LegacyModelsRedi
 const LegacyFixtureRedirect = lazy(() => import("./pages/routing/LegacyFixtureRedirect"));
 const DefaultLocaleRedirect = lazy(() => import("./pages/routing/DefaultLocaleRedirect"));
 const ProfileSettingsPage = lazy(() => import("./pages/ProfileSettingsPage"));
+const UserModelsPage = lazy(() => import("./pages/UserModelsPage"));
 const LocaleGate = lazy(() => import("./routes/guards/LocaleGate"));
 const PublicFixturesPage = lazy(() => import("./pages/fixtures/PublicFixturesPage"));
 const PublicPredictionsPage = lazy(() => import("./pages/predictions/PublicPredictionsPage"));
@@ -90,6 +91,7 @@ export default function App() {
 
                 <Route element={<RequireAuth />}>
                   <Route path="/profile-settings" element={<ProfileSettingsPage />} />
+                <Route path="/pro/models" element={<UserModelsPage />} />
                   <Route path="/chat" element={<ChatPage />} />
                   <Route path="/sonuc-tahminlerim" element={<SonucTahminlerimPage />} />
                   <Route path="/kuponlarim" element={<KuponlarimPage />} />

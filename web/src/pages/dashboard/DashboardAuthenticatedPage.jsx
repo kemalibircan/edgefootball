@@ -367,6 +367,26 @@ export default function DashboardAuthenticatedPage({ dashboard }) {
   const hasTopSlides = topSliderImages.length > 0;
   const topSlideImage = hasTopSlides ? topSliderImages[topSlideIndex] || topSliderImages[0] : "";
 
+  const resolveTodayLocalISO = () => {
+    const base = new Date();
+    const local = new Date(base.getTime() - base.getTimezoneOffset() * 60 * 1000);
+    return local.toISOString().slice(0, 10);
+  };
+
+  const handleRefreshTodayFixturesCache = () => {
+    const todayIso = resolveTodayLocalISO();
+    queueTask(
+      "/admin/tasks/fixtures-cache-refresh",
+      {
+        date_from: todayIso,
+        date_to: todayIso,
+        league_ids: null,
+      },
+      "fixtures-cache-refresh-today",
+      "Bugunun mac cache'i yenileniyor"
+    );
+  };
+
   const aiCommentActionLabel = hasAiCommentForSelectedFixture
     ? showInlineAiComment
       ? "Yorumu Gizle"
@@ -770,6 +790,23 @@ export default function DashboardAuthenticatedPage({ dashboard }) {
       <section className="grid actions">
         {showAdminTools ? (
         <>
+        <div className="card">
+          <h2>Bugunun Mac Cache'i</h2>
+          <p className="help-text">
+            SportMonks'tan bugunun maclarini cekip fixture cache tablosuna kaydeder. Public sayfalarda bugun icin bu
+            cache kullanilir.
+          </p>
+          <OperationStatus op={operationFor("fixtures-cache-refresh-today")} />
+          <ActionButton
+            loading={isLoading("fixtures-cache-refresh-today")}
+            loadingText="Cache yenileniyor..."
+            onClick={handleRefreshTodayFixturesCache}
+            disabled={isLoading("fixtures-cache-refresh-today")}
+          >
+            Bugunun Maclarini Yenile (SportMonks)
+          </ActionButton>
+        </div>
+
         <div className="card">
           <h2>{selectedLeagueLabel} Veri Havuzu (2000 hedef)</h2>
           <p className="help-text">
