@@ -56,8 +56,8 @@ export default function BlogCategoryPage() {
   const title = `${locale === "en" ? "Blog Category" : "Blog Kategori"}: ${category}`;
   const description =
     locale === "en"
-      ? `Football blog posts for category: ${category}.`
-      : `${category} kategorisindeki futbol blog yazilari.`;
+      ? `Football analytics, xG models and prediction articles about ${category}, including tactical breakdowns and data-driven insights.`
+      : `${category} kategorisindeki futbol analizleri, xG modelleri, tahmin yontemleri ve veri odakli taktik incelemeler.`;
 
   const breadcrumbData = useMemo(
     () => ({

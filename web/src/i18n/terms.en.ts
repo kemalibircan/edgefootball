@@ -23,6 +23,7 @@ export const uiTextEn = {
     profileSettings: "Profile Settings",
     language: "Language",
     theme: "Theme",
+    blog: "Blog",
   },
   profile: {
     title: "Profile Settings",

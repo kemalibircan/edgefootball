@@ -162,4 +162,20 @@
   }
 }
 
+@media (max-width: 480px) {
+  .live-league-fixtures-section {
+    margin-top: 8px;
+  }
+
+  .live-league-fixtures-section .section-header {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .live-league-fixtures-section .section-description {
+    font-size: 0.8rem;
+    line-height: 1.35;
+  }
+}
+
 

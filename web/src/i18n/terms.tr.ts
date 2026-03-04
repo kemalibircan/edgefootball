@@ -23,6 +23,7 @@ export const uiTextTr = {
     profileSettings: "Profil Ayarları",
     language: "Dil",
     theme: "Tema",
+    blog: "Blog",
   },
   profile: {
     title: "Profil Ayarları",

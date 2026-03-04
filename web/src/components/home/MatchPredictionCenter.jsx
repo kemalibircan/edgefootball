@@ -4,6 +4,7 @@ import { useLanguage } from "../../contexts/LanguageContext";
 import { useChat } from "../../contexts/ChatContext";
 import TeamLogo from "../common/TeamLogo";
 import OddsButton from "../coupon/OddsButton";
+import FootballLoader from "../common/FootballLoader";
 import "./MatchPredictionCenter.css";
 
 const LEAGUE_OPTIONS = [
@@ -103,27 +104,16 @@ export default function MatchPredictionCenter({ apiBase }) {
         return;
       }
 
-      const fallbackDays = Array.from({ length: 7 }, (_, idx) => addDaysToISODate(today, idx));
-      const fallbackRequests = fallbackDays.map((dayValue) => {
-        const dayParams = new URLSearchParams(paramsBase);
-        dayParams.set("page", "1");
-        dayParams.set("page_size", "50");
-        dayParams.set("day", dayValue);
-        return fetchJsonOrThrow(`${apiBase}/fixtures/public/today?${dayParams.toString()}`);
-      });
-      const fallbackResponses = await Promise.all(fallbackRequests);
-      const deduped = new Map();
-      for (const payload of fallbackResponses) {
-        const items = Array.isArray(payload?.items) ? payload.items : [];
-        for (const item of items) {
-          const fixtureId = String(item?.fixture_id || "").trim();
-          if (!fixtureId || deduped.has(fixtureId)) {
-            continue;
-          }
-          deduped.set(fixtureId, item);
-        }
-      }
-      const allFallbackItems = Array.from(deduped.values()).sort(compareFixtures);
+      // Fallback: fetch the next 7 days in a single request (avoids 7x roundtrips).
+      const rangeParams = new URLSearchParams(paramsBase);
+      rangeParams.set("page", "1");
+      rangeParams.set("page_size", "50");
+      rangeParams.set("upcoming_only", "true");
+      rangeParams.set("date_from", today);
+      rangeParams.set("date_to", fallbackEnd);
+      const rangePayload = await fetchJsonOrThrow(`${apiBase}/fixtures/public?${rangeParams.toString()}`);
+      const rangeItems = Array.isArray(rangePayload.items) ? rangePayload.items : [];
+      const allFallbackItems = [...rangeItems].sort(compareFixtures);
       const fallbackPageSize = 12;
       const fallbackTotal = allFallbackItems.length;
       const fallbackTotalPages = Math.max(1, Math.ceil(fallbackTotal / fallbackPageSize));
@@ -229,7 +219,7 @@ export default function MatchPredictionCenter({ apiBase }) {
         ) : null}
 
         {loading ? (
-          <div className="match-loading">{t.guestLanding.loadingFixtures}</div>
+          <FootballLoader label={t.guestLanding.loadingFixtures} size="md" />
         ) : error ? (
           <div className="match-error">{error}</div>
         ) : fixtures.length === 0 ? (

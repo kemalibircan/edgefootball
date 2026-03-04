@@ -32,6 +32,7 @@ const PublicPredictionDetailPage = lazy(() => import("./pages/predictions/Public
 const BlogIndexPage = lazy(() => import("./pages/blog/BlogIndexPage"));
 const BlogCategoryPage = lazy(() => import("./pages/blog/BlogCategoryPage"));
 const BlogPostPage = lazy(() => import("./pages/blog/BlogPostPage"));
+const BlogTagPage = lazy(() => import("./pages/blog/BlogTagPage"));
 const LocaleHomePage = lazy(() => import("./pages/LocaleHomePage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 const FixtureDetailPage = lazy(() => import("./pages/FixtureDetailPage"));
@@ -76,6 +77,7 @@ export default function App() {
                   <Route path="predictions/:fixtureId/:slug" element={<PublicPredictionDetailPage />} />
                   <Route path="blog" element={<BlogIndexPage />} />
                   <Route path="blog/category/:categorySlug" element={<BlogCategoryPage />} />
+                  <Route path="blog/tags/:tagSlug" element={<BlogTagPage />} />
                   <Route path="blog/:slug" element={<BlogPostPage />} />
                   <Route path="*" element={<NotFoundPage />} />
                 </Route>

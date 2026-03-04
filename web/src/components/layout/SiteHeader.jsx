@@ -4,8 +4,6 @@ import { apiRequest, API_BASE, logoutCurrentSession } from "../../lib/api";
 import { clearAuthToken, readAuthToken } from "../../lib/auth";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../contexts/ThemeContext";
-import ThemeToggle from "../theme/ThemeToggle";
-import LanguageSwitcher from "../theme/LanguageSwitcher";
 import ChatToggleButton from "./ChatToggleButton";
 import logoLight from "../../images/logo.png";
 import logoDark from "../../images/logo-dark.png";
@@ -32,6 +30,9 @@ export default function SiteHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef(null);
+
+  const closeMobileMenu = useCallback(() => setMobileMenuOpen(false), []);
+  const closeProfileMenu = useCallback(() => setProfileMenuOpen(false), []);
 
   const loadSavedPredictionsCount = useCallback(async () => {
     if (!readAuthToken()) {
@@ -149,6 +150,51 @@ export default function SiteHeader() {
     }
   }, [profileMenuOpen]);
 
+  // Close any open menus on route change to avoid "stuck open" states on mobile.
+  useEffect(() => {
+    setMobileMenuOpen(false);
+    setProfileMenuOpen(false);
+  }, [location.pathname]);
+
+  // ESC closes menus
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    if (!mobileMenuOpen && !profileMenuOpen) return undefined;
+
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setMobileMenuOpen(false);
+        setProfileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [mobileMenuOpen, profileMenuOpen]);
+
+  // Lock body scroll while mobile nav is open (prevents background scroll on iOS).
+  useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    if (!mobileMenuOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mobileMenuOpen]);
+
+  // If the viewport grows beyond the mobile breakpoint, close the mobile menu.
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const onResize = () => {
+      if (window.innerWidth > 1024) {
+        setMobileMenuOpen(false);
+      }
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   const handleLogout = async () => {
     setProfileMenuOpen(false);
     try {
@@ -163,6 +209,8 @@ export default function SiteHeader() {
   };
 
   const toggleProfileMenu = () => {
+    // Avoid overlapping dropdown + mobile menu on small screens.
+    setMobileMenuOpen(false);
     setProfileMenuOpen(!profileMenuOpen);
   };
 
@@ -193,9 +241,34 @@ export default function SiteHeader() {
 
   return (
     <header className="site-header-bar">
+      {mobileMenuOpen ? (
+        <button
+          type="button"
+          className="site-nav-backdrop"
+          aria-label="Close menu"
+          onClick={closeMobileMenu}
+        />
+      ) : null}
       <div className="site-header-container">
         {/* Logo */}
-        <div className="site-brand" onClick={() => navigate(`/${locale}`)}>
+        <div
+          className="site-brand"
+          role="button"
+          tabIndex={0}
+          onClick={() => {
+            closeMobileMenu();
+            closeProfileMenu();
+            navigate(`/${locale}`);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              closeMobileMenu();
+              closeProfileMenu();
+              navigate(`/${locale}`);
+            }
+          }}
+        >
           <img
             src={theme === "dark" ? logoDark : logoLight}
             alt={t.app.name}
@@ -207,19 +280,40 @@ export default function SiteHeader() {
         </div>
 
         {/* Navigation */}
-        <nav className={`site-nav-links ${mobileMenuOpen ? "mobile-open" : ""}`}>
-          <NavLink to={`/${locale}`} end className={({ isActive }) => `site-link ${isActive ? "active" : ""}`}>
+        <nav
+          id="site-primary-nav"
+          className={`site-nav-links ${mobileMenuOpen ? "mobile-open" : ""}`}
+          aria-label="Primary"
+        >
+          <NavLink
+            to={`/${locale}`}
+            end
+            onClick={closeMobileMenu}
+            className={({ isActive }) => `site-link ${isActive ? "active" : ""}`}
+          >
             {t.header.home}
+          </NavLink>
+          <NavLink
+            to={`/${locale}/blog`}
+            onClick={closeMobileMenu}
+            className={({ isActive }) => `site-link ${isActive ? "active" : ""}`}
+          >
+            {t.header.blog}
           </NavLink>
           {isAuthenticated && (
             <>
-              <NavLink to="/kuponlarim" className={({ isActive }) => `site-link ${isActive ? "active" : ""}`}>
+              <NavLink
+                to="/kuponlarim"
+                onClick={closeMobileMenu}
+                className={({ isActive }) => `site-link ${isActive ? "active" : ""}`}
+              >
                 {t.header.myCoupons}
               </NavLink>
             </>
           )}
           <NavLink
             to="/ai-tahminlerim"
+            onClick={closeMobileMenu}
             className={({ isActive }) => `site-link with-count ${isActive ? "active" : ""}`}
           >
             <span>{t.header.myAiPredictions}</span>
@@ -228,12 +322,12 @@ export default function SiteHeader() {
             )}
           </NavLink>
           {isAuthenticated && (
-            <NavLink to="/chat" className={({ isActive }) => `site-link ${isActive ? "active" : ""}`}>
+            <NavLink to="/chat" onClick={closeMobileMenu} className={({ isActive }) => `site-link ${isActive ? "active" : ""}`}>
               {t.header.aiChat}
             </NavLink>
           )}
           {isAdminUser && (
-            <NavLink to="/admin" className={({ isActive }) => `site-link ${isActive ? "active" : ""}`}>
+            <NavLink to="/admin" onClick={closeMobileMenu} className={({ isActive }) => `site-link ${isActive ? "active" : ""}`}>
               {t.header.adminPanel}
             </NavLink>
           )}
@@ -244,7 +338,13 @@ export default function SiteHeader() {
           {/* Mobile menu toggle */}
           <button
             className="site-nav-toggle"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            type="button"
+            aria-controls="site-primary-nav"
+            aria-expanded={mobileMenuOpen}
+            onClick={() => {
+              closeProfileMenu();
+              setMobileMenuOpen((prev) => !prev);
+            }}
             aria-label="Toggle menu"
           >
             <svg

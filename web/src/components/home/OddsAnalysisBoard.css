@@ -94,3 +94,21 @@
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 480px) {
+  .odds-analysis-board {
+    padding: 40px 0;
+  }
+
+  .odds-card {
+    padding: 16px;
+  }
+
+  .odds-card-match {
+    font-size: 13px;
+  }
+
+  .odds-value-odd {
+    font-size: 18px;
+  }
+}

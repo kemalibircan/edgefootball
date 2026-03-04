@@ -1905,18 +1905,19 @@ def get_fixtures_paged(
     safe_page = max(1, int(page))
     safe_page_size = max(1, min(int(page_size), 50))
     
-    # Use get_fixture_board_page to include odds data
-    target = date_from if date_from else (date.today() if upcoming_only else None)
+    # Use get_fixture_board_page to include odds data (supports date ranges)
     payload = get_fixture_board_page(
         settings=settings,
         page=safe_page,
         page_size=safe_page_size,
         league_id=league_id,
         q=q,
-        target_date=target,
+        date_from=date_from,
+        date_to=date_to,
         sort=sort,
         game_type="all",
         featured_only=False,
+        upcoming_only=upcoming_only,
     )
     
     # Convert board items to simpler public format

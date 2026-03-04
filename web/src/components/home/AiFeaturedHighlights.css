@@ -166,3 +166,38 @@
     font-size: 24px;
   }
 }
+
+@media (max-width: 480px) {
+  .ai-featured-highlights {
+    padding: 40px 0;
+  }
+
+  .section-header {
+    margin-bottom: 20px;
+  }
+
+  .section-title {
+    font-size: 20px;
+  }
+
+  .ai-badge {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  .highlight-card {
+    padding: 18px;
+  }
+
+  .highlight-odds {
+    gap: 10px;
+  }
+
+  .highlight-odd {
+    padding: 10px;
+  }
+
+  .highlight-odd-value {
+    font-size: 16px;
+  }
+}

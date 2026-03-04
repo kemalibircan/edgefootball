@@ -343,6 +343,14 @@
 }
 
 @media (max-width: 480px) {
+  .live-scores-widget {
+    padding: 1.25rem 0;
+  }
+
+  .live-scores-title h2 {
+    font-size: 1.25rem;
+  }
+
   .live-match-card {
     padding: 1rem;
   }

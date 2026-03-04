@@ -228,3 +228,35 @@
     max-width: none;
   }
 }
+
+@media (max-width: 480px) {
+  .match-prediction-center {
+    padding: 40px 0;
+  }
+
+  .filter-btn {
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+
+  .match-card {
+    padding: 16px;
+  }
+
+  .match-card-actions {
+    flex-direction: column;
+  }
+
+  .btn-small {
+    width: 100%;
+  }
+
+  .match-card-odds-buttons {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .match-card-odds-buttons .odds-button {
+    flex: 1 1 30%;
+  }
+}
