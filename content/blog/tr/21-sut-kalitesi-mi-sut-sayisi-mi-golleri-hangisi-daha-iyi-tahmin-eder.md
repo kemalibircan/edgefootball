@@ -58,4 +58,4 @@ Hayır. En sağlıklı yaklaşım, model çıktısını kendi maç okumanız ve 
 
 Doğru kullanıldığında yapay zeka tahminleri, kolay kazanç vaadi değil; futbola saydam ve nicel bir bakış açısı sunar.
 
-Bugünkü fikstürü incelemek için platformdaki yapay zeka tahmin bölümünü açabilir, skor olasılıklarını kendi beklentilerinizle karşılaştırabilirsiniz.
+Bugünkü fikstürü incelemek için [`Yapay Zeka Tahminler`](/tr/predictions) sayfasını açabilir, skor olasılıklarını kendi beklentilerinizle karşılaştırabilir ve diğer yazılara göz atmak için [`blog ana sayfası`](/tr/blog) üzerinden devam edebilirsiniz.

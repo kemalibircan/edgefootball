@@ -31,6 +31,22 @@ class Settings(BaseSettings):
     cache_ttl_seconds: int = 600
     sportmonks_timeout_seconds: int = 120
     openai_timeout_seconds: int = 45
+    cors_allowed_origins: str = (
+        "http://localhost:3001,"
+        "http://127.0.0.1:3001,"
+        "http://0.0.0.0:3001,"
+        "https://edgefootball.org,"
+        "https://www.edgefootball.org"
+    )
+    cors_allow_origin_regex: str = (
+        r"^https?://("
+        r"localhost|127\.0\.0\.1|0\.0\.0\.0|"
+        r"192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|"
+        r"172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|"
+        r"([a-z0-9-]+\.)?edgefootball\.org|"
+        r"[a-z0-9-]+\.vercel\.app"
+        r")(:\d+)?$"
+    )
 
     # Auth & credit system
     auth_secret: str = "footballai-dev-secret-change-me"

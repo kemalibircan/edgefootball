@@ -1,0 +1,32 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://api.edgefootball.org/:path*"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "https://api.edgefootball.org/sitemap.xml"
+    },
+    {
+      "source": "/sitemaps/:path*",
+      "destination": "https://api.edgefootball.org/sitemaps/:path*"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "https://api.edgefootball.org/robots.txt"
+    },
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "header",
+          "key": "accept",
+          "value": "text/html.*"
+        }
+      ],
+      "destination": "/index.html"
+    }
+  ]
+}

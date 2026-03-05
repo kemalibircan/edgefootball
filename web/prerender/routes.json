@@ -1,0 +1,194 @@
+[
+  {
+    "path": "/tr",
+    "title": "EdgeFootball TR",
+    "description": "Futbol tahminleri, fikstur ve analiz.",
+    "locale": "tr",
+    "ogType": "website",
+    "image": "",
+    "robots": "index,follow",
+    "alternates": [
+      {
+        "hreflang": "tr",
+        "href": "http://localhost:3001/tr"
+      },
+      {
+        "hreflang": "en",
+        "href": "http://localhost:3001/en"
+      },
+      {
+        "hreflang": "x-default",
+        "href": "http://localhost:3001/tr"
+      }
+    ],
+    "jsonLdBlocks": []
+  },
+  {
+    "path": "/en",
+    "title": "EdgeFootball EN",
+    "description": "Football predictions, fixtures and analysis.",
+    "locale": "en",
+    "ogType": "website",
+    "image": "",
+    "robots": "index,follow",
+    "alternates": [
+      {
+        "hreflang": "tr",
+        "href": "http://localhost:3001/tr"
+      },
+      {
+        "hreflang": "en",
+        "href": "http://localhost:3001/en"
+      },
+      {
+        "hreflang": "x-default",
+        "href": "http://localhost:3001/tr"
+      }
+    ],
+    "jsonLdBlocks": []
+  },
+  {
+    "path": "/tr/blog",
+    "title": "Futbol Blogu | EdgeFootball",
+    "description": "Oyuncu, lig ve taktik analiz yazilari.",
+    "locale": "tr",
+    "ogType": "website",
+    "image": "",
+    "robots": "index,follow",
+    "alternates": [
+      {
+        "hreflang": "tr",
+        "href": "http://localhost:3001/tr/blog"
+      },
+      {
+        "hreflang": "en",
+        "href": "http://localhost:3001/en/blog"
+      },
+      {
+        "hreflang": "x-default",
+        "href": "http://localhost:3001/tr/blog"
+      }
+    ],
+    "jsonLdBlocks": []
+  },
+  {
+    "path": "/en/blog",
+    "title": "Football Blog | EdgeFootball",
+    "description": "Player, league and tactical analysis articles.",
+    "locale": "en",
+    "ogType": "website",
+    "image": "",
+    "robots": "index,follow",
+    "alternates": [
+      {
+        "hreflang": "tr",
+        "href": "http://localhost:3001/tr/blog"
+      },
+      {
+        "hreflang": "en",
+        "href": "http://localhost:3001/en/blog"
+      },
+      {
+        "hreflang": "x-default",
+        "href": "http://localhost:3001/tr/blog"
+      }
+    ],
+    "jsonLdBlocks": []
+  },
+  {
+    "path": "/tr/fixtures",
+    "title": "Futbol Maçlari | EdgeFootball",
+    "description": "Yaklasan maclar ve detaylar.",
+    "locale": "tr",
+    "ogType": "website",
+    "image": "",
+    "robots": "index,follow",
+    "alternates": [
+      {
+        "hreflang": "tr",
+        "href": "http://localhost:3001/tr/fixtures"
+      },
+      {
+        "hreflang": "en",
+        "href": "http://localhost:3001/en/fixtures"
+      },
+      {
+        "hreflang": "x-default",
+        "href": "http://localhost:3001/tr/fixtures"
+      }
+    ],
+    "jsonLdBlocks": []
+  },
+  {
+    "path": "/en/fixtures",
+    "title": "Football Fixtures | EdgeFootball",
+    "description": "Upcoming fixtures and details.",
+    "locale": "en",
+    "ogType": "website",
+    "image": "",
+    "robots": "index,follow",
+    "alternates": [
+      {
+        "hreflang": "tr",
+        "href": "http://localhost:3001/tr/fixtures"
+      },
+      {
+        "hreflang": "en",
+        "href": "http://localhost:3001/en/fixtures"
+      },
+      {
+        "hreflang": "x-default",
+        "href": "http://localhost:3001/tr/fixtures"
+      }
+    ],
+    "jsonLdBlocks": []
+  },
+  {
+    "path": "/tr/predictions",
+    "title": "Maç Tahminleri | EdgeFootball",
+    "description": "Yapay zeka destekli mac tahminleri.",
+    "locale": "tr",
+    "ogType": "website",
+    "image": "",
+    "robots": "index,follow",
+    "alternates": [
+      {
+        "hreflang": "tr",
+        "href": "http://localhost:3001/tr/predictions"
+      },
+      {
+        "hreflang": "en",
+        "href": "http://localhost:3001/en/predictions"
+      },
+      {
+        "hreflang": "x-default",
+        "href": "http://localhost:3001/tr/predictions"
+      }
+    ],
+    "jsonLdBlocks": []
+  },
+  {
+    "path": "/en/predictions",
+    "title": "Match Predictions | EdgeFootball",
+    "description": "AI-powered match predictions.",
+    "locale": "en",
+    "ogType": "website",
+    "image": "",
+    "robots": "index,follow",
+    "alternates": [
+      {
+        "hreflang": "tr",
+        "href": "http://localhost:3001/tr/predictions"
+      },
+      {
+        "hreflang": "en",
+        "href": "http://localhost:3001/en/predictions"
+      },
+      {
+        "hreflang": "x-default",
+        "href": "http://localhost:3001/tr/predictions"
+      }
+    ],
+    "jsonLdBlocks": []
+  }
+]

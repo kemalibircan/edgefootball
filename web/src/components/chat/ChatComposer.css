@@ -16,13 +16,38 @@
 }
 
 .chat-composer-error {
-  padding: 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
   margin-bottom: 12px;
   background: var(--danger-soft);
   border: 1px solid var(--danger);
-  border-radius: 8px;
+  border-radius: 10px;
   color: var(--danger);
   font-size: 13px;
+}
+
+.chat-composer-error-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+
+.chat-composer-error-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-composer-error-title {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.chat-composer-error-text {
+  color: var(--danger);
+  opacity: 0.9;
 }
 
 .chat-composer-form {

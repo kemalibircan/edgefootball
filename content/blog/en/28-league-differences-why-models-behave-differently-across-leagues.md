@@ -58,4 +58,4 @@ You shouldn’t. The best results come from combining model outputs with your ow
 
 Used in the right way, AI predictions are a transparent, quantitative lens on football rather than a shortcut to easy wins.
 
-To see these ideas in action, open today’s fixtures in our AI predictor, explore the score probabilities and compare them with your own expectations.
+To see these ideas in action, open today’s fixtures on our [`AI Predictions`](/en/predictions) page, explore the score probabilities and compare them with your own expectations, or continue reading from the [`blog homepage`](/en/blog).

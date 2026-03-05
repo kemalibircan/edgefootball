@@ -34,7 +34,7 @@ from app.auth import (
 )
 from app.blog import admin_router as blog_admin_router
 from app.blog import router as blog_router
-from app.config import get_settings
+from app.config import Settings, get_settings
 from app.db_migrations import run_startup_migrations
 from app.coupons import admin_router as coupons_admin_router
 from app.coupons import router as coupons_router
@@ -53,6 +53,24 @@ from sportmonks_client.client import SportMonksClient
 from modeling.simulate import simulate_fixture
 
 
+def _split_csv(value: Optional[str]) -> list[str]:
+    raw = str(value or "")
+    return [item.strip() for item in raw.split(",") if item and item.strip()]
+
+
+def _cors_origins(settings: Settings) -> list[str]:
+    origins = _split_csv(settings.cors_allowed_origins)
+    if origins:
+        return origins
+    return [
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+        "http://0.0.0.0:3001",
+        "https://edgefootball.org",
+        "https://www.edgefootball.org",
+    ]
+
+
 app = FastAPI(
     title="Football Simulation API",
     description="Monte Carlo simulation for football fixtures using SportMonks v3",
@@ -62,15 +80,13 @@ app = FastAPI(
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+settings = get_settings()
+cors_origin_regex = str(settings.cors_allow_origin_regex or "").strip() or None
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3001",
-        "http://127.0.0.1:3001",
-        "http://0.0.0.0:3001",
-    ],
-    # Local development hosts (localhost + private LAN IPs)
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|0\.0\.0\.0|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})(:\d+)?$",
+    allow_origins=_cors_origins(settings),
+    allow_origin_regex=cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -4,7 +4,7 @@ import { useLanguage } from "../../contexts/LanguageContext";
 import "./ChatComposer.css";
 
 export default function ChatComposer() {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const { activeThreadId, draftFixture, sendMessage, sending, sendError } = useChat();
   const [question, setQuestion] = useState("");
 
@@ -34,6 +34,16 @@ export default function ChatComposer() {
 
   const hasContext = activeThreadId || draftFixture;
 
+  const isModelMissingError =
+    typeof sendError === "string" &&
+    (sendError.includes("No ready/default model found for league") ||
+      sendError.includes("No trained models available"));
+
+  const modelMissingTitle = t.chatPage?.modelMissingTitle;
+  const modelMissingBody = t.chatPage?.modelMissingBody;
+  const genericErrorTitle =
+    t.chatPage?.errorTitle ?? (locale === "en" ? "Something went wrong" : "Bir hata oluştu");
+
   return (
     <div className="chat-composer">
       {!hasContext ? (
@@ -42,7 +52,30 @@ export default function ChatComposer() {
         </div>
       ) : null}
 
-      {sendError ? <div className="chat-composer-error">{sendError}</div> : null}
+      {sendError ? (
+        <div className="chat-composer-error" role="alert">
+          <div className="chat-composer-error-icon" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="11" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
+              <path
+                d="M12 7v7"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+              <circle cx="12" cy="16.5" r="1.1" fill="currentColor" />
+            </svg>
+          </div>
+          <div className="chat-composer-error-content">
+            <div className="chat-composer-error-title">
+              {isModelMissingError && modelMissingTitle ? modelMissingTitle : genericErrorTitle}
+            </div>
+            <div className="chat-composer-error-text">
+              {isModelMissingError && modelMissingBody ? modelMissingBody : sendError}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <form onSubmit={handleSubmit} className="chat-composer-form">
         <textarea

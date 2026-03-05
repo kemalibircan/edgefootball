@@ -4,6 +4,7 @@ import { apiRequest, API_BASE, logoutCurrentSession } from "../../lib/api";
 import { clearAuthToken, readAuthToken } from "../../lib/auth";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../contexts/ThemeContext";
+import { GLOBAL_NOTICE_EVENT } from "../../lib/globalNotice";
 import ChatToggleButton from "./ChatToggleButton";
 import logoLight from "../../images/logo.png";
 import logoDark from "../../images/logo-dark.png";
@@ -24,12 +25,14 @@ export default function SiteHeader() {
   const navigate = useNavigate();
   const { t, locale, setLocale } = useLanguage();
   const { theme, setTheme } = useTheme();
+  const [globalNotice, setGlobalNotice] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [savedPredictionsCount, setSavedPredictionsCount] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef(null);
+  const globalNoticeTimerRef = useRef(null);
 
   const closeMobileMenu = useCallback(() => setMobileMenuOpen(false), []);
   const closeProfileMenu = useCallback(() => setProfileMenuOpen(false), []);
@@ -155,6 +158,47 @@ export default function SiteHeader() {
     setMobileMenuOpen(false);
     setProfileMenuOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const onGlobalNotice = (event) => {
+      const detail = event?.detail && typeof event.detail === "object" ? event.detail : {};
+      const id = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+      const next = {
+        id,
+        kind: detail.kind || "warning",
+        code: detail.code || "",
+        title: detail.title || "",
+        message: detail.message || "",
+        autoDismissMs: Number(detail.autoDismissMs) || 0,
+        meta: detail.meta && typeof detail.meta === "object" ? detail.meta : null,
+      };
+
+      setGlobalNotice(next);
+
+      if (globalNoticeTimerRef.current) {
+        clearTimeout(globalNoticeTimerRef.current);
+        globalNoticeTimerRef.current = null;
+      }
+
+      if (next.autoDismissMs > 0) {
+        globalNoticeTimerRef.current = setTimeout(() => {
+          setGlobalNotice(null);
+          globalNoticeTimerRef.current = null;
+        }, next.autoDismissMs);
+      }
+    };
+
+    window.addEventListener(GLOBAL_NOTICE_EVENT, onGlobalNotice);
+    return () => {
+      window.removeEventListener(GLOBAL_NOTICE_EVENT, onGlobalNotice);
+      if (globalNoticeTimerRef.current) {
+        clearTimeout(globalNoticeTimerRef.current);
+        globalNoticeTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // ESC closes menus
   useEffect(() => {
@@ -536,6 +580,53 @@ export default function SiteHeader() {
           </div>
         </div>
       </div>
+      {globalNotice ? (
+        <div
+          className={`site-global-notice ${globalNotice.kind || "warning"}`}
+          role={globalNotice.kind === "error" ? "alert" : "status"}
+          aria-live={globalNotice.kind === "error" ? "assertive" : "polite"}
+        >
+          <div className="site-global-notice-inner">
+            <div className="site-global-notice-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="11" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
+                <path d="M12 7v7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                <circle cx="12" cy="16.5" r="1.1" fill="currentColor" />
+              </svg>
+            </div>
+            <div className="site-global-notice-content">
+              <div className="site-global-notice-title">
+                {globalNotice.code === "league_model_missing"
+                  ? t?.notices?.modelMissingTitle || globalNotice.title || "AI model not available"
+                  : globalNotice.title || (locale === "en" ? "Notice" : "Bilgi")}
+              </div>
+              <div className="site-global-notice-body">
+                {globalNotice.code === "league_model_missing"
+                  ? t?.notices?.modelMissingBody || globalNotice.message
+                  : globalNotice.message}
+              </div>
+            </div>
+            <button
+              type="button"
+              className="site-global-notice-dismiss"
+              aria-label={t?.notices?.dismiss || (locale === "en" ? "Dismiss" : "Kapat")}
+              onClick={() => setGlobalNotice(null)}
+            >
+              <span className="site-global-notice-dismiss-label">
+                {t?.notices?.dismiss || (locale === "en" ? "Dismiss" : "Kapat")}
+              </span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M6 6l12 12M18 6L6 18"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+      ) : null}
     </header>
   );
 }
