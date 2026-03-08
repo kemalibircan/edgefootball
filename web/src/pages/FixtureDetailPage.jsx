@@ -9,10 +9,12 @@ import { useChat } from "../contexts/ChatContext";
 import { useLanguage } from "../contexts/LanguageContext";
 import { apiRequest, savePrediction } from "../lib/api";
 import { readAuthToken } from "../lib/auth";
+import { emitGlobalNotice } from "../lib/globalNotice";
 import { normalizeLocale, slugify } from "../lib/seo";
 import "./FixtureDetailPage.css";
 
-const API_BASE = String(import.meta.env.VITE_API_BASE_URL || "http://localhost:8001").replace(/\/+$/, "");
+// Backend varsayılan portu 8000; env yoksa buna düş.
+const API_BASE = String(import.meta.env.VITE_API_BASE_URL || "http://localhost:8000").replace(/\/+$/, "");
 
 function toPositiveOdd(value) {
   const parsed = Number(value);
@@ -314,7 +316,26 @@ export default function FixtureDetailPage() {
       const result = await apiRequest(`/simulate?fixture_id=${fixture.fixture_id}`);
       setSimulation(result);
     } catch (err) {
-      alert(String(err.message || "Simulation failed"));
+      const message = String(err?.message || "").trim();
+      const isModelMissing =
+        message.includes("No ready/default model found for league") ||
+        message.includes("No trained models available");
+
+      if (isModelMissing) {
+        emitGlobalNotice({
+          kind: "warning",
+          code: "league_model_missing",
+          message,
+        });
+        return;
+      }
+
+      emitGlobalNotice({
+        kind: "error",
+        title: activeLocale === "en" ? "Simulation failed" : "Simülasyon başarısız",
+        message: message || (activeLocale === "en" ? "Simulation failed" : "Simülasyon başarısız"),
+        autoDismissMs: 9000,
+      });
     } finally {
       setSimulating(false);
     }

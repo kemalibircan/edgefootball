@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from loguru import logger
 import pandas as pd
 from pydantic import BaseModel, Field
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.ai_commentary import generate_match_commentary
@@ -27,11 +27,11 @@ from app.auth import (
     _normalize_email,
     _send_email_code,
     consume_ai_credits,
-    ensure_auth_tables,
     get_current_user,
     hash_password,
 )
 from app.config import Settings, get_settings
+from app.db import get_engine
 from app.mailer import MailDeliveryError
 from app.fixture_board import get_fixture_board_page, get_fixture_cache_status, load_cached_fixture_summaries
 from app.league_model_bootstrap import get_league_model_status
@@ -921,7 +921,7 @@ def replace_showcase_section_rows(
     actor_user_id: int,
 ) -> int:
     normalized_key = _normalize_showcase_section_key(section_key)
-    engine = create_engine(settings.db_url)
+    engine = get_engine(settings)
     _ensure_showcase_matches_table(engine)
     now_utc = datetime.now(timezone.utc)
     safe_actor_id = int(actor_user_id)
@@ -1316,7 +1316,7 @@ def _odds_banner_row_to_dict(row: dict) -> dict:
 
 
 def load_showcase_sections(settings: Settings, *, include_inactive: bool = False) -> dict:
-    engine = create_engine(settings.db_url)
+    engine = get_engine(settings)
     _ensure_showcase_matches_table(engine)
 
     where_sql = "" if include_inactive else "WHERE is_active = TRUE"
@@ -1349,7 +1349,7 @@ def load_showcase_sections(settings: Settings, *, include_inactive: bool = False
 
 
 def load_showcase_slider_images(settings: Settings, *, include_inactive: bool = False) -> dict:
-    engine = create_engine(settings.db_url)
+    engine = get_engine(settings)
     _ensure_showcase_slider_images_table(engine)
 
     where_sql = "" if include_inactive else "WHERE is_active = TRUE"
@@ -1371,7 +1371,7 @@ def load_showcase_slider_images(settings: Settings, *, include_inactive: bool = 
 
 
 def load_showcase_odds_banner_settings(settings: Settings, *, include_inactive: bool = False) -> dict:
-    engine = create_engine(settings.db_url)
+    engine = get_engine(settings)
     _ensure_showcase_odds_banner_table(engine)
 
     where_sql = "" if include_inactive else "WHERE is_active = TRUE"
@@ -1459,7 +1459,7 @@ def _outcome_from_probabilities(outcomes: dict) -> Optional[str]:
 
 
 def _fetch_fixture_payload_dict(settings: Settings, fixture_id: int) -> dict:
-    engine = create_engine(settings.db_url)
+    engine = get_engine(settings)
     query = text(
         """
         SELECT payload
@@ -1534,7 +1534,7 @@ def _refresh_saved_prediction_result(conn, settings: Settings, prediction_row: d
 
 
 def _load_fixture_summaries(settings: Settings, scan_limit: int) -> list[dict]:
-    engine = create_engine(settings.db_url)
+    engine = get_engine(settings)
     query = text(
         """
         SELECT fixture_id, payload
@@ -1566,7 +1566,7 @@ def _load_fixture_summary_map_by_ids(settings: Settings, fixture_ids: list[int])
     if not safe_ids:
         return {}
 
-    engine = create_engine(settings.db_url)
+    engine = get_engine(settings)
     query = text(
         """
         SELECT fixture_id, payload
@@ -1742,7 +1742,7 @@ def _build_legacy_training_frame(model_payload: dict, settings: Settings) -> pd.
     row_limit = max(1, min(row_limit, 15000))
     scan_limit = max(2000, min(row_limit * 6, 60000))
 
-    engine = create_engine(settings.db_url)
+    engine = get_engine(settings)
     query = text(
         """
         SELECT fixture_id, event_date, label_home_goals, label_away_goals, feature_vector
@@ -1786,7 +1786,7 @@ def _build_legacy_training_frame(model_payload: dict, settings: Settings) -> pd.
 
 @router.get("/overview")
 def get_overview(settings: Settings = Depends(get_settings)):
-    engine = create_engine(settings.db_url)
+    engine = get_engine(settings)
     try:
         with engine.connect() as conn:
             raw_count = _safe_scalar(conn, "SELECT COUNT(*) FROM raw_fixtures", default=0)
@@ -1823,7 +1823,7 @@ def get_overview(settings: Settings = Depends(get_settings)):
 @router.get("/features/recent")
 def get_recent_features(limit: int = 20, settings: Settings = Depends(get_settings)):
     limit = max(1, min(limit, 100))
-    engine = create_engine(settings.db_url)
+    engine = get_engine(settings)
     query = text(
         """
         SELECT fixture_id, event_date, label_home_goals, label_away_goals, feature_vector
@@ -1905,18 +1905,19 @@ def get_fixtures_paged(
     safe_page = max(1, int(page))
     safe_page_size = max(1, min(int(page_size), 50))
     
-    # Use get_fixture_board_page to include odds data
-    target = date_from if date_from else (date.today() if upcoming_only else None)
+    # Use get_fixture_board_page to include odds data (supports date ranges)
     payload = get_fixture_board_page(
         settings=settings,
         page=safe_page,
         page_size=safe_page_size,
         league_id=league_id,
         q=q,
-        target_date=target,
+        date_from=date_from,
+        date_to=date_to,
         sort=sort,
         game_type="all",
         featured_only=False,
+        upcoming_only=upcoming_only,
     )
     
     # Convert board items to simpler public format
@@ -2034,7 +2035,7 @@ def upsert_slider_images(
     current_user: AuthUser = Depends(get_current_user),
 ):
     _ensure_superadmin_permissions(current_user)
-    engine = create_engine(settings.db_url)
+    engine = get_engine(settings)
     _ensure_showcase_slider_images_table(engine)
     now_utc = datetime.now(timezone.utc)
 
@@ -2096,7 +2097,7 @@ def upsert_odds_banner_settings(
     current_user: AuthUser = Depends(get_current_user),
 ):
     _ensure_superadmin_permissions(current_user)
-    engine = create_engine(settings.db_url)
+    engine = get_engine(settings)
     _ensure_showcase_odds_banner_table(engine)
     now_utc = datetime.now(timezone.utc)
 
@@ -2190,7 +2191,7 @@ def save_prediction(
     settings: Settings = Depends(get_settings),
     current_user: AuthUser = Depends(get_current_user),
 ):
-    engine = create_engine(settings.db_url)
+    engine = get_engine(settings)
     _ensure_saved_predictions_table(engine)
 
     simulation = request.simulation
@@ -2397,7 +2398,7 @@ def get_daily_predictions(
     safe_page_size = max(1, min(page_size, 100))
     offset = (safe_page - 1) * safe_page_size
 
-    engine = create_engine(settings.db_url)
+    engine = get_engine(settings)
     _ensure_saved_predictions_table(engine)
 
     where_parts = ["prediction_date = :target_day"]
@@ -2474,7 +2475,7 @@ def get_predictions_list(
     safe_page_size = max(1, min(page_size, 100))
     offset = (safe_page - 1) * safe_page_size
 
-    engine = create_engine(settings.db_url)
+    engine = get_engine(settings)
     _ensure_saved_predictions_table(engine)
 
     where_parts: list[str] = []
@@ -2537,7 +2538,7 @@ def refresh_prediction_result(
     prediction_id: int,
     settings: Settings = Depends(get_settings),
 ):
-    engine = create_engine(settings.db_url)
+    engine = get_engine(settings)
     _ensure_saved_predictions_table(engine)
 
     select_sql = text(f"SELECT * FROM {SAVED_PREDICTIONS_TABLE} WHERE id = :id LIMIT 1")
@@ -2567,7 +2568,7 @@ def get_prediction_statistics(
     Get prediction statistics for the current user.
     Returns accuracy metrics, outcome breakdowns, and league-specific stats.
     """
-    engine = create_engine(settings.db_url)
+    engine = get_engine(settings)
     _ensure_saved_predictions_table(engine)
 
     # Build WHERE clause
@@ -2692,7 +2693,7 @@ def bulk_refresh_predictions(
     Bulk refresh actual results for predictions.
     Can filter by date range or specific prediction IDs.
     """
-    engine = create_engine(settings.db_url)
+    engine = get_engine(settings)
     _ensure_saved_predictions_table(engine)
 
     # Build WHERE clause
@@ -2749,7 +2750,7 @@ def delete_prediction(
     """
     Delete a prediction. Only the owner can delete their predictions.
     """
-    engine = create_engine(settings.db_url)
+    engine = get_engine(settings)
     _ensure_saved_predictions_table(engine)
 
     with engine.begin() as conn:
@@ -2996,8 +2997,7 @@ def _load_user_role_map(settings: Settings, user_ids: list[int]) -> dict[int, st
     if not safe_ids:
         return {}
 
-    engine = create_engine(settings.db_url)
-    ensure_auth_tables(engine)
+    engine = get_engine(settings)
     sql = text(
         f"""
         SELECT id, role
@@ -3262,8 +3262,7 @@ def list_users(
     _ensure_manager_permissions(current_user)
     safe_limit = max(1, min(limit, 500))
 
-    engine = create_engine(settings.db_url)
-    ensure_auth_tables(engine)
+    engine = get_engine(settings)
     with engine.connect() as conn:
         rows = conn.execute(
             text(
@@ -3302,8 +3301,7 @@ def create_user(
     now_utc = datetime.now(timezone.utc)
     password_hash = hash_password(request.password)
 
-    engine = create_engine(settings.db_url)
-    ensure_auth_tables(engine)
+    engine = get_engine(settings)
     try:
         with engine.begin() as conn:
             row = conn.execute(
@@ -3377,8 +3375,7 @@ def admin_set_user_password(
     current_user: AuthUser = Depends(get_current_user),
 ):
     _ensure_manager_permissions(current_user)
-    engine = create_engine(settings.db_url)
-    ensure_auth_tables(engine)
+    engine = get_engine(settings)
     now_utc = datetime.now(timezone.utc)
 
     with engine.begin() as conn:
@@ -3428,8 +3425,7 @@ def admin_update_user_credits(
     if delta == 0:
         raise HTTPException(status_code=400, detail="delta 0 olamaz.")
 
-    engine = create_engine(settings.db_url)
-    ensure_auth_tables(engine)
+    engine = get_engine(settings)
     now_utc = datetime.now(timezone.utc)
 
     with engine.begin() as conn:
@@ -3493,7 +3489,7 @@ def submit_payment_notice(
     settings: Settings = Depends(get_settings),
     current_user: AuthUser = Depends(get_current_user),
 ):
-    engine = create_engine(settings.db_url)
+    engine = get_engine(settings)
     _ensure_payment_notices_table(engine)
     now_utc = datetime.now(timezone.utc)
 
@@ -3572,7 +3568,7 @@ def list_payment_notices(
     if normalized_status and normalized_status not in allowed_status:
         raise HTTPException(status_code=400, detail="Gecersiz status filtre degeri.")
 
-    engine = create_engine(settings.db_url)
+    engine = get_engine(settings)
     _ensure_payment_notices_table(engine)
     sql = f"SELECT * FROM {PAYMENT_NOTICES_TABLE}"
     params: dict[str, Any] = {"limit": safe_limit}
@@ -3594,9 +3590,8 @@ def set_payment_notice_status(
     current_user: AuthUser = Depends(get_current_user),
 ):
     _ensure_manager_permissions(current_user)
-    engine = create_engine(settings.db_url)
+    engine = get_engine(settings)
     _ensure_payment_notices_table(engine)
-    ensure_auth_tables(engine)
     now_utc = datetime.now(timezone.utc)
     advanced_mode_granted = False
     granted_user_id: Optional[int] = None
@@ -3680,7 +3675,7 @@ def delete_rejected_payment_notice(
     current_user: AuthUser = Depends(get_current_user),
 ):
     _ensure_manager_permissions(current_user)
-    engine = create_engine(settings.db_url)
+    engine = get_engine(settings)
     _ensure_payment_notices_table(engine)
 
     with engine.begin() as conn:

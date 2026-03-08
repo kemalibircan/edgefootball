@@ -7,6 +7,14 @@ import {
   toAbsoluteUrl,
 } from "../../lib/seo";
 
+function removeElement(selector) {
+  if (typeof document === "undefined") return;
+  const head = document.head;
+  if (!head) return;
+  const element = head.querySelector(selector);
+  element?.remove();
+}
+
 function upsertMeta(selector, attributes = {}) {
   if (typeof document === "undefined") return;
   const head = document.head;
@@ -153,15 +161,19 @@ export default function SeoHead({
 
     const resolvedImage = image ? toAbsoluteUrl(image) : "";
 
-    upsertMeta('meta[property="og:image"]', {
-      property: "og:image",
-      content: resolvedImage,
-    });
-
-    upsertMeta('meta[name="twitter:image"]', {
-      name: "twitter:image",
-      content: resolvedImage,
-    });
+    if (resolvedImage) {
+      upsertMeta('meta[property="og:image"]', {
+        property: "og:image",
+        content: resolvedImage,
+      });
+      upsertMeta('meta[name="twitter:image"]', {
+        name: "twitter:image",
+        content: resolvedImage,
+      });
+    } else {
+      removeElement('meta[property="og:image"]');
+      removeElement('meta[name="twitter:image"]');
+    }
 
     clearHreflangLinks();
     const hreflangs = hreflangLinks({ trPath, enPath, defaultPath });

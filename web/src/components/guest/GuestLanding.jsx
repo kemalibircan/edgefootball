@@ -6,7 +6,9 @@ import SliderShowcase from "../home/SliderShowcase";
 import AiFeaturedHighlights from "../home/AiFeaturedHighlights";
 import MatchPredictionCenter from "../home/MatchPredictionCenter";
 import OddsAnalysisBoard from "../home/OddsAnalysisBoard";
+import LiveLeagueFixturesBoard from "../home/LiveLeagueFixturesBoard";
 import ErrorBoundary from "../common/ErrorBoundary";
+import FootballLoader from "../common/FootballLoader";
 import ActionButton from "../dashboard/ActionButton";
 import TeamBadge from "../dashboard/TeamBadge";
 import { uiText } from "../../i18n/terms.tr";
@@ -90,6 +92,9 @@ export default function GuestLanding({ apiBase, featuredOddsRows, isLoggedIn = f
       </ErrorBoundary>
       <ErrorBoundary fallback={null}>
         <OddsAnalysisBoard apiBase={apiBase} />
+      </ErrorBoundary>
+      <ErrorBoundary fallback={null}>
+        <LiveLeagueFixturesBoard />
       </ErrorBoundary>
     </div>
   );
@@ -420,7 +425,7 @@ function GuestLandingLegacy({
         </div>
 
         {fixtureError ? <div className="error">{fixtureError}</div> : null}
-        {fixtureLoading ? <p className="small-text">{uiText.guestLanding.loadingFixtures}</p> : null}
+        {fixtureLoading ? <FootballLoader label={uiText.guestLanding.loadingFixtures} size="sm" /> : null}
 
         <div className="guest-fixture-list">
           {(fixturePayload.items || []).map((fixture) => (

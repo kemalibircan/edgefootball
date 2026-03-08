@@ -24,10 +24,18 @@ from app.admin import (
     require_superadmin,
 )
 from app.ai_commentary import generate_match_commentary
-from app.auth import AuthUser, bootstrap_superadmin, consume_ai_credits, get_current_user, router as auth_router
+from app.auth import (
+    AuthUser,
+    auth_secret_fingerprint,
+    bootstrap_superadmin,
+    consume_ai_credits,
+    get_current_user,
+    router as auth_router,
+)
 from app.blog import admin_router as blog_admin_router
 from app.blog import router as blog_router
-from app.config import get_settings
+from app.config import Settings, get_settings
+from app.db_migrations import run_startup_migrations
 from app.coupons import admin_router as coupons_admin_router
 from app.coupons import router as coupons_router
 from app.fixture_board import (
@@ -35,12 +43,32 @@ from app.fixture_board import (
     ensure_fixture_board_tables,
     extract_fixture_markets_from_payload,
     get_fixture_board_page,
+    _build_fixture_board_row,
+    _row_to_board_item,
 )
 from app.image_generation import generate_slider_images_batch, generate_match_based_slider_images
 from app.scheduler import start_scheduler, stop_scheduler
 from app.seo import router as seo_router
 from sportmonks_client.client import SportMonksClient
 from modeling.simulate import simulate_fixture
+
+
+def _split_csv(value: Optional[str]) -> list[str]:
+    raw = str(value or "")
+    return [item.strip() for item in raw.split(",") if item and item.strip()]
+
+
+def _cors_origins(settings: Settings) -> list[str]:
+    origins = _split_csv(settings.cors_allowed_origins)
+    if origins:
+        return origins
+    return [
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+        "http://0.0.0.0:3001",
+        "https://edgefootball.org",
+        "https://www.edgefootball.org",
+    ]
 
 
 app = FastAPI(
@@ -52,15 +80,13 @@ app = FastAPI(
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+settings = get_settings()
+cors_origin_regex = str(settings.cors_allow_origin_regex or "").strip() or None
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3001",
-        "http://127.0.0.1:3001",
-        "http://0.0.0.0:3001",
-    ],
-    # Local development hosts (localhost + private LAN IPs)
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|0\.0\.0\.0|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})(:\d+)?$",
+    allow_origins=_cors_origins(settings),
+    allow_origin_regex=cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -78,6 +104,7 @@ app.include_router(seo_router)
 @app.on_event("startup")
 def _bootstrap_auth():
     settings = get_settings()
+    run_startup_migrations(settings)
     bootstrap_superadmin(settings)
     start_scheduler()
 
@@ -100,7 +127,15 @@ def health(settings=Depends(get_settings)):
         "predictions_public": "/predictions/public" in registered_paths,
         "fixture_detail_public": "/fixtures/public/{fixture_id}" in registered_paths,
     }
-    return {"status": "ok", "dummy_mode": settings.dummy_mode, "capabilities": capabilities}
+    return {
+        "status": "ok",
+        "dummy_mode": settings.dummy_mode,
+        "capabilities": capabilities,
+        "auth": {
+            "mode": "session_refresh",
+            "secret_fingerprint": auth_secret_fingerprint(settings),
+        },
+    }
 
 
 @app.get("/showcase/public")
@@ -160,8 +195,151 @@ def fixtures_public_today(
         sort=sort,
         settings=settings,
     )
+
+    # Fallback: if cache tablosu boşsa, SportMonks üzerinden doğrudan bugünkü maçları çek.
+    items = payload.get("items") or []
+    total = int(payload.get("total") or 0)
+    if not items and total == 0:
+        try:
+            fallback = _fixtures_today_from_sportmonks(
+                settings=settings,
+                target_day=target_day,
+                page=page,
+                page_size=page_size,
+                league_id=league_id,
+                q=q,
+                sort=sort,
+            )
+            payload = fallback
+        except Exception as exc:
+            logger.warning("fixtures_public_today SportMonks fallback failed day={} err={}", target_day, exc)
+
     payload["day"] = target_day.isoformat()
     return payload
+
+
+def _fixtures_today_from_sportmonks(
+    *,
+    settings,
+    target_day: date,
+    page: int,
+    page_size: int,
+    league_id: Optional[int],
+    q: Optional[str],
+    sort: str,
+) -> dict:
+    """
+    Bugünkü maçlar için, cache bos ise SportMonks'ten dogrudan veri ceken helper.
+    DB'ye yazmaz, sadece public endpoint icin hafif bir fallback saglar.
+    """
+    safe_page = max(1, int(page))
+    safe_page_size = max(1, min(int(page_size), 200))
+
+    client = SportMonksClient(
+        api_token=settings.sportmonks_api_token,
+        dummy_mode=settings.dummy_mode,
+        rate_limit_per_minute=settings.rate_limit_per_minute,
+        cache_ttl=settings.cache_ttl_seconds,
+        timeout_seconds=settings.sportmonks_timeout_seconds,
+    )
+
+    payload = client.get_fixtures_by_date(
+        fixture_date=target_day,
+        includes=["participants", "odds", "scores", "state", "league"],
+        page=1,
+        per_page=200,
+    )
+    raw_items = payload.get("data") or []
+    if not isinstance(raw_items, list):
+        raw_items = []
+
+    rows = []
+    refreshed_at = datetime.now(timezone.utc)
+    normalized_query = str(q or "").strip().lower()
+
+    for fixture in raw_items:
+        if not isinstance(fixture, dict):
+            continue
+        if league_id is not None:
+            fid_league = fixture.get("league_id")
+            try:
+                fid_league_int = int(fid_league) if fid_league is not None else None
+            except (TypeError, ValueError):
+                fid_league_int = None
+            if fid_league_int != int(league_id):
+                continue
+
+        row = _build_fixture_board_row(fixture, refreshed_at=refreshed_at)
+        if row is None:
+            continue
+
+        if normalized_query:
+            text_parts = [
+                str(row.get("home_team_name") or "").lower(),
+                str(row.get("away_team_name") or "").lower(),
+                str(row.get("league_name") or "").lower(),
+            ]
+            if normalized_query not in " ".join(text_parts):
+                continue
+
+        rows.append(row)
+
+    if not rows:
+        return {
+            "page": safe_page,
+            "page_size": safe_page_size,
+            "total": 0,
+            "total_pages": 1,
+            "items": [],
+        }
+
+    reverse = str(sort or "asc").lower() != "asc"
+    rows.sort(
+        key=lambda r: (
+            r.get("starting_at") or datetime(1970, 1, 1, tzinfo=timezone.utc),
+            int(r.get("fixture_id") or 0),
+        ),
+        reverse=reverse,
+    )
+
+    total = len(rows)
+    total_pages = max(1, (total + safe_page_size - 1) // safe_page_size)
+    start = (safe_page - 1) * safe_page_size
+    end = start + safe_page_size
+    page_rows = rows[start:end]
+
+    public_items = []
+    for row in page_rows:
+        item = _row_to_board_item(dict(row))
+        item.pop("_sort_dt", None)
+        public_items.append(
+            {
+                "fixture_id": item.get("fixture_id"),
+                "league_id": item.get("league_id"),
+                "league_name": item.get("league_name"),
+                "starting_at": item.get("starting_at"),
+                "home_team_id": item.get("home_team_id"),
+                "away_team_id": item.get("away_team_id"),
+                "home_team_name": item.get("home_team_name"),
+                "away_team_name": item.get("away_team_name"),
+                "home_team_logo": item.get("home_team_logo"),
+                "away_team_logo": item.get("away_team_logo"),
+                "match_label": item.get("match_label"),
+                "is_upcoming": bool(item.get("is_upcoming", True)),
+                "status": item.get("status"),
+                "is_live": item.get("is_live"),
+                "markets": item.get("markets"),
+                "scores": item.get("scores"),
+            }
+        )
+
+    return {
+        "page": safe_page,
+        "page_size": safe_page_size,
+        "total": total,
+        "total_pages": total_pages,
+        "items": public_items,
+    }
 
 
 def _to_int_or_none(value):

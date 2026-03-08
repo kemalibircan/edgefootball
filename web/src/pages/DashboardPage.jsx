@@ -8,14 +8,14 @@ import {
   resolveModelScope,
   sortVisibleModels,
 } from "../lib/modelCatalog";
+import { API_BASE, apiRequest, isAuthTerminalError, logoutCurrentSession } from "../lib/api";
+import { clearAuthToken, readAuthToken } from "../lib/auth";
 import { CREDIT_PACKAGES, PAYMENT_WALLETS } from "../lib/tokenPackages";
 import { useChat } from "../contexts/ChatContext";
 import DashboardAuthenticatedPage from "./dashboard/DashboardAuthenticatedPage";
 import DashboardLoadingPage from "./dashboard/DashboardLoadingPage";
 import DashboardModelsPage from "./dashboard/DashboardModelsPage";
 
-const API_BASE = String(import.meta.env.VITE_API_BASE_URL || "http://localhost:8001").replace(/\/+$/, "");
-const AUTH_TOKEN_KEY = "football_ai_access_token";
 const LAST_SIMULATION_STORAGE_KEY = "football_ai_last_simulation_snapshot";
 const LEAGUE_OPTIONS = [
   { id: 600, code: "TR-SL", label: "Super Lig" },
@@ -26,17 +26,6 @@ const LEAGUE_OPTIONS = [
   { id: 5, code: "UEFA-EL", label: "Europa League" },
 ];
 const DEFAULT_LEAGUE_ID = 600;
-
-function readAuthToken() {
-  if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(AUTH_TOKEN_KEY) || "";
-}
-
-function clearAuthToken() {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(AUTH_TOKEN_KEY);
-  window.dispatchEvent(new Event("auth-token-changed"));
-}
 
 function shiftedLocalISODate(offsetDays = 0) {
   const base = new Date();
@@ -303,36 +292,6 @@ function taskStage(task) {
   if (task?.ready && task?.successful) return "Tamamlandi";
   if (task?.ready && !task?.successful) return "Basarisiz";
   return "Calisiyor";
-}
-
-async function apiRequest(path, options = {}) {
-  const { skipAuth = false, headers: extraHeaders = {}, ...restOptions } = options || {};
-  const headers = {
-    "Content-Type": "application/json",
-    ...extraHeaders,
-  };
-  if (!skipAuth) {
-    const token = readAuthToken();
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
-  }
-
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers,
-    ...restOptions,
-  });
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    if (response.status === 401 && !skipAuth) {
-      clearAuthToken();
-      if (typeof window !== "undefined") {
-        window.location.reload();
-      }
-    }
-    throw new Error(data.detail || `Request failed: ${response.status}`);
-  }
-  return response.json();
 }
 
 function asPercent(value) {
@@ -838,7 +797,12 @@ export default function DashboardPage({ mode = "dashboard" }) {
     return profile;
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await logoutCurrentSession();
+    } catch (_err) {
+      // Local logout still proceeds if backend revoke call fails.
+    }
     clearAuthToken();
     setCurrentUser(null);
     setSliderImagesAdmin([]);
@@ -2253,9 +2217,17 @@ export default function DashboardPage({ mode = "dashboard" }) {
       })
       .catch((err) => {
         settle(() => {
-          clearAuthToken();
+          const authTerminal = isAuthTerminalError(err) || !readAuthToken();
+          if (authTerminal) {
+            clearAuthToken("dashboard_bootstrap_auth_terminal");
+          }
           setCurrentUser(null);
-          setError(err.message || "Oturum gecersiz, lutfen tekrar giris yap.");
+          setError(
+            err.message ||
+              (authTerminal
+                ? "Oturum gecersiz, lutfen tekrar giris yap."
+                : "Oturum kontrolu gecici olarak basarisiz oldu.")
+          );
         });
       });
 

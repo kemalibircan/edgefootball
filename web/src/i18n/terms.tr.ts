@@ -3,6 +3,12 @@ export const uiTextTr = {
     name: "EdgeFootball",
     tagline: "Tahmin, kupon ve analiz tek ekranda",
   },
+  notices: {
+    dismiss: "Kapat",
+    modelMissingTitle: "Bu lig için AI modeli henüz hazır değil",
+    modelMissingBody:
+      "Bu ligde AI tahmini oluşturmak için arka planda model hazırlanması gerekiyor. Şu an için maç detaylarını ve oranları görebilirsin. Farklı bir lig deneyebilir veya daha sonra tekrar gelebilirsin.",
+  },
   header: {
     home: "Ana Sayfa",
     dashboard: "Ana Sayfa",
@@ -23,6 +29,7 @@ export const uiTextTr = {
     profileSettings: "Profil Ayarları",
     language: "Dil",
     theme: "Tema",
+    blog: "Blog",
   },
   profile: {
     title: "Profil Ayarları",
@@ -51,6 +58,9 @@ export const uiTextTr = {
     loading: "Yükleniyor...",
     noMatches: "Maç bulunamadı",
     noConversations: "Henüz sohbet yok. Sohbet başlatmak için bir maç arayın.",
+    modelMissingTitle: "Bu lig için AI modeli henüz hazır değil",
+    modelMissingBody:
+      "Bu ligde AI tahmini oluşturmak için arka planda model hazırlanması gerekiyor. Şu an için sadece maç detaylarını ve oranları görebilirsin. Farklı bir lig deneyebilir veya daha sonra tekrar gelebilirsin.",
     justNow: "Şimdi",
     minutesAgo: "{{count}} dk önce",
     hoursAgo: "{{count}} sa önce",

@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     dalle_model: str = "dall-e-3"
     daily_generation_enabled: bool = True
     db_url: str = "postgresql://football:football@localhost:5432/football"
+    db_run_startup_migrations: bool = True
+    db_migrations_dir: str = "migrations"
     redis_url: str = "redis://localhost:6379/0"
     dummy_mode: bool = False
     log_level: str = "INFO"
@@ -29,10 +31,33 @@ class Settings(BaseSettings):
     cache_ttl_seconds: int = 600
     sportmonks_timeout_seconds: int = 120
     openai_timeout_seconds: int = 45
+    cors_allowed_origins: str = (
+        "http://localhost:3001,"
+        "http://127.0.0.1:3001,"
+        "http://0.0.0.0:3001,"
+        "https://edgefootball.org,"
+        "https://www.edgefootball.org"
+    )
+    cors_allow_origin_regex: str = (
+        r"^https?://("
+        r"localhost|127\.0\.0\.1|0\.0\.0\.0|"
+        r"192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|"
+        r"172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|"
+        r"([a-z0-9-]+\.)?edgefootball\.org|"
+        r"[a-z0-9-]+\.vercel\.app"
+        r")(:\d+)?$"
+    )
 
     # Auth & credit system
     auth_secret: str = "footballai-dev-secret-change-me"
+    auth_secret_fallbacks: str = ""
     auth_token_ttl_hours: int = 72
+    auth_access_token_ttl_minutes: int = 15
+    auth_refresh_token_ttl_days: int = 30
+    auth_refresh_cookie_name: str = "football_ai_refresh"
+    auth_cookie_secure: bool = False
+    auth_cookie_samesite: str = "lax"
+    auth_cookie_domain: Optional[str] = None
     auth_initial_credits: int = 100
     simulation_credit_cost: int = 7
     ai_commentary_credit_cost: int = 10

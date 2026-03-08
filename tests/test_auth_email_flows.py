@@ -40,7 +40,7 @@ def _settings() -> Settings:
 
 def test_register_request_dispatches_code(monkeypatch):
     captured: dict[str, object] = {}
-    monkeypatch.setattr(auth, "create_engine", lambda db_url: _FakeEngine(object()))
+    monkeypatch.setattr(auth, "get_engine", lambda settings: _FakeEngine(object()))
     monkeypatch.setattr(auth, "ensure_auth_tables", lambda engine: None)
     monkeypatch.setattr(auth, "_fetch_login_row", lambda conn, email: None)
 
@@ -73,7 +73,7 @@ def test_register_request_dispatches_code(monkeypatch):
 
 
 def test_register_request_returns_conflict_for_verified_email(monkeypatch):
-    monkeypatch.setattr(auth, "create_engine", lambda db_url: _FakeEngine(object()))
+    monkeypatch.setattr(auth, "get_engine", lambda settings: _FakeEngine(object()))
     monkeypatch.setattr(auth, "ensure_auth_tables", lambda engine: None)
     monkeypatch.setattr(
         auth,
@@ -92,7 +92,7 @@ def test_register_request_returns_conflict_for_verified_email(monkeypatch):
 
 
 def test_register_request_wraps_mail_delivery_error(monkeypatch):
-    monkeypatch.setattr(auth, "create_engine", lambda db_url: _FakeEngine(object()))
+    monkeypatch.setattr(auth, "get_engine", lambda settings: _FakeEngine(object()))
     monkeypatch.setattr(auth, "ensure_auth_tables", lambda engine: None)
     monkeypatch.setattr(auth, "_fetch_login_row", lambda conn, email: None)
     monkeypatch.setattr(auth, "_create_email_challenge", lambda conn, **kwargs: "123456")
@@ -114,7 +114,7 @@ def test_register_request_wraps_mail_delivery_error(monkeypatch):
 
 
 def test_login_requires_verified_and_active(monkeypatch):
-    monkeypatch.setattr(auth, "create_engine", lambda db_url: _FakeEngine(object()))
+    monkeypatch.setattr(auth, "get_engine", lambda settings: _FakeEngine(object()))
     monkeypatch.setattr(auth, "ensure_auth_tables", lambda engine: None)
     monkeypatch.setattr(
         auth,
@@ -142,8 +142,18 @@ def test_login_requires_verified_and_active(monkeypatch):
 
 
 def test_verify_login_code_success(monkeypatch):
-    monkeypatch.setattr(auth, "create_engine", lambda db_url: _FakeEngine(object()))
+    monkeypatch.setattr(auth, "get_engine", lambda settings: _FakeEngine(object()))
     monkeypatch.setattr(auth, "ensure_auth_tables", lambda engine: None)
+    monkeypatch.setattr(
+        auth,
+        "_create_login_session_payload",
+        lambda conn, *, user, settings, request=None, response=None: auth.LoginResponse(
+            access_token="session-token",
+            user=user,
+            expires_in_seconds=900,
+            refresh_token="refresh-token",
+        ),
+    )
     monkeypatch.setattr(
         auth,
         "_consume_email_code",

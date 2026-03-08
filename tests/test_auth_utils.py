@@ -13,10 +13,11 @@ def test_password_hash_roundtrip():
 
 
 def test_access_token_roundtrip_and_tamper_detection():
-    settings = Settings(auth_secret="unit-test-secret", auth_token_ttl_hours=1)
-    token = create_access_token(42, settings)
+    settings = Settings(auth_secret="unit-test-secret", auth_access_token_ttl_minutes=30)
+    token = create_access_token(42, settings, session_id=77)
     payload = decode_access_token(token, settings)
     assert int(payload["sub"]) == 42
+    assert int(payload["sid"]) == 77
 
     parts = token.split(".")
     tampered = f"{parts[0]}.broken-signature"
@@ -25,3 +26,17 @@ def test_access_token_roundtrip_and_tamper_detection():
         assert False, "Tampered token should fail"
     except HTTPException as exc:
         assert exc.status_code == 401
+
+
+def test_access_token_decodes_with_fallback_secret():
+    old_settings = Settings(auth_secret="old-secret", auth_access_token_ttl_minutes=30)
+    token = create_access_token(99, old_settings, session_id=501)
+
+    rotated_settings = Settings(
+        auth_secret="new-secret",
+        auth_secret_fallbacks="old-secret,older-secret",
+        auth_access_token_ttl_minutes=30,
+    )
+    payload = decode_access_token(token, rotated_settings)
+    assert int(payload["sub"]) == 99
+    assert int(payload["sid"]) == 501

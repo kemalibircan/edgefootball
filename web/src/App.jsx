@@ -24,6 +24,7 @@ const LegacyModelsRedirect = lazy(() => import("./pages/routing/LegacyModelsRedi
 const LegacyFixtureRedirect = lazy(() => import("./pages/routing/LegacyFixtureRedirect"));
 const DefaultLocaleRedirect = lazy(() => import("./pages/routing/DefaultLocaleRedirect"));
 const ProfileSettingsPage = lazy(() => import("./pages/ProfileSettingsPage"));
+const UserModelsPage = lazy(() => import("./pages/UserModelsPage"));
 const LocaleGate = lazy(() => import("./routes/guards/LocaleGate"));
 const PublicFixturesPage = lazy(() => import("./pages/fixtures/PublicFixturesPage"));
 const PublicPredictionsPage = lazy(() => import("./pages/predictions/PublicPredictionsPage"));
@@ -31,6 +32,7 @@ const PublicPredictionDetailPage = lazy(() => import("./pages/predictions/Public
 const BlogIndexPage = lazy(() => import("./pages/blog/BlogIndexPage"));
 const BlogCategoryPage = lazy(() => import("./pages/blog/BlogCategoryPage"));
 const BlogPostPage = lazy(() => import("./pages/blog/BlogPostPage"));
+const BlogTagPage = lazy(() => import("./pages/blog/BlogTagPage"));
 const LocaleHomePage = lazy(() => import("./pages/LocaleHomePage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 const FixtureDetailPage = lazy(() => import("./pages/FixtureDetailPage"));
@@ -75,6 +77,7 @@ export default function App() {
                   <Route path="predictions/:fixtureId/:slug" element={<PublicPredictionDetailPage />} />
                   <Route path="blog" element={<BlogIndexPage />} />
                   <Route path="blog/category/:categorySlug" element={<BlogCategoryPage />} />
+                  <Route path="blog/tags/:tagSlug" element={<BlogTagPage />} />
                   <Route path="blog/:slug" element={<BlogPostPage />} />
                   <Route path="*" element={<NotFoundPage />} />
                 </Route>
@@ -90,6 +93,7 @@ export default function App() {
 
                 <Route element={<RequireAuth />}>
                   <Route path="/profile-settings" element={<ProfileSettingsPage />} />
+                <Route path="/pro/models" element={<UserModelsPage />} />
                   <Route path="/chat" element={<ChatPage />} />
                   <Route path="/sonuc-tahminlerim" element={<SonucTahminlerimPage />} />
                   <Route path="/kuponlarim" element={<KuponlarimPage />} />

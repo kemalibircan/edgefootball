@@ -87,8 +87,18 @@ def _settings(**kwargs) -> Settings:
 
 def test_login_google_creates_new_user_when_email_not_found(monkeypatch):
     conn = _FakeConn()
-    monkeypatch.setattr(auth, "create_engine", lambda db_url: _FakeEngine(conn))
+    monkeypatch.setattr(auth, "get_engine", lambda settings: _FakeEngine(conn))
     monkeypatch.setattr(auth, "ensure_auth_tables", lambda engine: None)
+    monkeypatch.setattr(
+        auth,
+        "_create_login_session_payload",
+        lambda conn, *, user, settings, request=None, response=None: auth.LoginResponse(
+            access_token="session-token",
+            user=user,
+            expires_in_seconds=900,
+            refresh_token="refresh-token",
+        ),
+    )
     monkeypatch.setattr(
         auth,
         "_verify_google_id_token",
@@ -125,8 +135,18 @@ def test_login_google_links_existing_email_without_google_sub(monkeypatch):
         "advanced_mode_enabled": False,
         "google_sub": "google-sub-xyz",
     }
-    monkeypatch.setattr(auth, "create_engine", lambda db_url: _FakeEngine(conn))
+    monkeypatch.setattr(auth, "get_engine", lambda settings: _FakeEngine(conn))
     monkeypatch.setattr(auth, "ensure_auth_tables", lambda engine: None)
+    monkeypatch.setattr(
+        auth,
+        "_create_login_session_payload",
+        lambda conn, *, user, settings, request=None, response=None: auth.LoginResponse(
+            access_token="session-token",
+            user=user,
+            expires_in_seconds=900,
+            refresh_token="refresh-token",
+        ),
+    )
     monkeypatch.setattr(
         auth,
         "_verify_google_id_token",
@@ -163,7 +183,7 @@ def test_login_google_links_existing_email_without_google_sub(monkeypatch):
 
 def test_login_google_rejects_conflicting_google_sub(monkeypatch):
     conn = _FakeConn()
-    monkeypatch.setattr(auth, "create_engine", lambda db_url: _FakeEngine(conn))
+    monkeypatch.setattr(auth, "get_engine", lambda settings: _FakeEngine(conn))
     monkeypatch.setattr(auth, "ensure_auth_tables", lambda engine: None)
     monkeypatch.setattr(
         auth,

@@ -3,6 +3,12 @@ export const uiTextEn = {
     name: "EdgeFootball",
     tagline: "Predictions, coupons and analysis in one screen",
   },
+  notices: {
+    dismiss: "Dismiss",
+    modelMissingTitle: "AI model is not ready for this league yet",
+    modelMissingBody:
+      "We need to prepare an AI model in the background before generating predictions for this league. For now you can view match details and odds. You can try a different league or come back later.",
+  },
   header: {
     home: "Home",
     dashboard: "Home",
@@ -23,6 +29,7 @@ export const uiTextEn = {
     profileSettings: "Profile Settings",
     language: "Language",
     theme: "Theme",
+    blog: "Blog",
   },
   profile: {
     title: "Profile Settings",
@@ -51,6 +58,9 @@ export const uiTextEn = {
     loading: "Loading...",
     noMatches: "No matches found",
     noConversations: "No conversations yet. Search for a match to start chatting.",
+    modelMissingTitle: "AI model is not ready for this league yet",
+    modelMissingBody:
+      "We need to prepare an AI model in the background before generating predictions for this league. For now you can still view match details and odds. You can try a different league or come back later.",
     justNow: "Just now",
     minutesAgo: "{{count}}m ago",
     hoursAgo: "{{count}}h ago",

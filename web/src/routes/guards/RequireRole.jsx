@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Navigate, Outlet } from "react-router-dom";
 import DashboardLoadingPage from "../../pages/dashboard/DashboardLoadingPage";
-import { apiRequest } from "../../lib/api";
-import { clearAuthToken, readAuthToken } from "../../lib/auth";
+import { apiRequest, isAuthTerminalError } from "../../lib/api";
+import { readAuthToken } from "../../lib/auth";
 
 export default function RequireRole({ roles = [], fallbackPath = "/" }) {
   const [state, setState] = useState({ loading: true, allowed: false, knownUser: false });
@@ -27,10 +27,14 @@ export default function RequireRole({ roles = [], fallbackPath = "/" }) {
         if (!cancelled) {
           setState({ loading: false, allowed, knownUser: true });
         }
-      } catch (_err) {
-        clearAuthToken();
+      } catch (err) {
+        const hasToken = Boolean(readAuthToken());
         if (!cancelled) {
-          setState({ loading: false, allowed: false, knownUser: false });
+          if (!hasToken || isAuthTerminalError(err)) {
+            setState({ loading: false, allowed: false, knownUser: false });
+          } else {
+            setState({ loading: false, allowed: false, knownUser: true });
+          }
         }
       }
     };

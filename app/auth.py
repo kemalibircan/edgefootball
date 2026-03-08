@@ -10,14 +10,16 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
+from loguru import logger
 from pydantic import BaseModel, Field
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 
 from app.config import Settings, get_settings
+from app.db import get_engine
 from app.mailer import MailDeliveryError, send_email
 
 ROLE_USER = "user"
@@ -30,10 +32,13 @@ AUTH_USERS_TABLE = "app_users"
 CREDIT_TX_TABLE = "credit_transactions"
 PASSWORD_RESET_REQUESTS_TABLE = "password_reset_requests"  # Legacy table kept for compatibility.
 AUTH_EMAIL_CHALLENGES_TABLE = "auth_email_challenges"
+AUTH_SESSIONS_TABLE = "auth_sessions"
 
 EMAIL_CODE_PURPOSE_REGISTER = "register"
 EMAIL_CODE_PURPOSE_LOGIN = "login"
 EMAIL_CODE_PURPOSE_PASSWORD_RESET = "password_reset"
+CLIENT_PLATFORM_WEB = "web"
+CLIENT_PLATFORM_MOBILE = "mobile"
 DEFAULT_AVATAR_KEY = "open_peeps_01"
 AVATAR_SOURCE_NAME = "DiceBear Open Peeps"
 AVATAR_SOURCE_URL = "https://www.dicebear.com/styles/open-peeps"
@@ -88,6 +93,8 @@ class LoginResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: AuthUser
+    expires_in_seconds: int = 0
+    refresh_token: Optional[str] = None
 
 
 class RegisterRequest(BaseModel):
@@ -153,6 +160,14 @@ class AvatarOptionsResponse(BaseModel):
 
 class AvatarUpdateRequest(BaseModel):
     avatar_key: str = Field(min_length=3, max_length=64)
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: Optional[str] = None
+
+
+class LogoutResponse(BaseModel):
+    ok: bool = True
 
 
 def _normalize_username(value: str) -> str:
@@ -237,34 +252,221 @@ def _sign_token_payload(payload_b64: str, secret: str) -> str:
     return _b64url_encode(digest)
 
 
-def create_access_token(user_id: int, settings: Settings) -> str:
-    exp = int(time.time()) + int(settings.auth_token_ttl_hours * 3600)
-    payload = {"sub": int(user_id), "exp": exp}
+def _parse_auth_secret_fallbacks(settings: Settings) -> list[str]:
+    raw_value = str(settings.auth_secret_fallbacks or "")
+    parts = [item.strip() for item in raw_value.split(",") if item and item.strip()]
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for item in parts:
+        if item == settings.auth_secret:
+            continue
+        if item in seen:
+            continue
+        deduped.append(item)
+        seen.add(item)
+    return deduped
+
+
+def _access_token_ttl_seconds(settings: Settings) -> int:
+    minutes = int(settings.auth_access_token_ttl_minutes or 0)
+    if minutes > 0:
+        return max(60, minutes * 60)
+    return max(60, int(settings.auth_token_ttl_hours) * 3600)
+
+
+def _refresh_token_ttl_seconds(settings: Settings) -> int:
+    return max(3600, int(settings.auth_refresh_token_ttl_days) * 24 * 3600)
+
+
+def _session_ttl_delta(settings: Settings) -> timedelta:
+    return timedelta(seconds=_refresh_token_ttl_seconds(settings))
+
+
+def _auth_secret_fingerprint(secret: str) -> str:
+    digest = hashlib.sha256(str(secret or "").encode("utf-8")).hexdigest()
+    return digest[:10]
+
+
+def auth_secret_fingerprint(settings: Settings) -> str:
+    return _auth_secret_fingerprint(settings.auth_secret)
+
+
+def _auth_terminal_log(
+    *,
+    reason: str,
+    request: Optional[Request] = None,
+    detail: Optional[str] = None,
+) -> None:
+    request_path = "-"
+    request_method = "-"
+    request_id = "-"
+    if request is not None:
+        request_path = str(request.url.path or "-")
+        request_method = str(request.method or "-")
+        request_id = (
+            str(request.headers.get("x-request-id") or "").strip()
+            or str(request.headers.get("x-correlation-id") or "").strip()
+            or "-"
+        )
+    logger.warning(
+        "auth_401 reason={} path={} method={} instance={} request_id={} detail={}",
+        str(reason or "unknown"),
+        request_path,
+        request_method,
+        str(os.getenv("HOSTNAME") or "local"),
+        request_id,
+        str(detail or ""),
+    )
+
+
+def _raise_auth_401(
+    detail: str,
+    *,
+    reason: str,
+    request: Optional[Request] = None,
+) -> None:
+    _auth_terminal_log(reason=reason, request=request, detail=detail)
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
+
+
+def create_access_token(user_id: int, settings: Settings, *, session_id: int) -> str:
+    now_epoch = int(time.time())
+    exp = now_epoch + _access_token_ttl_seconds(settings)
+    payload = {
+        "sub": int(user_id),
+        "sid": int(session_id),
+        "iat": now_epoch,
+        "exp": exp,
+    }
     payload_raw = json.dumps(payload, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
     payload_b64 = _b64url_encode(payload_raw)
     signature = _sign_token_payload(payload_b64, settings.auth_secret)
     return f"{payload_b64}.{signature}"
 
 
-def decode_access_token(token: str, settings: Settings) -> dict[str, Any]:
+def decode_access_token(token: str, settings: Settings, *, request: Optional[Request] = None) -> dict[str, Any]:
     try:
         payload_b64, signature = token.split(".", 1)
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token format") from exc
+        _raise_auth_401("Invalid token format", reason="invalid_format", request=request)
 
-    expected = _sign_token_payload(payload_b64, settings.auth_secret)
-    if not hmac.compare_digest(signature, expected):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token signature")
+    candidate_secrets = [settings.auth_secret, *_parse_auth_secret_fallbacks(settings)]
+    valid_signature = False
+    for secret in candidate_secrets:
+        expected = _sign_token_payload(payload_b64, secret)
+        if hmac.compare_digest(signature, expected):
+            valid_signature = True
+            break
+    if not valid_signature:
+        _raise_auth_401("Invalid token signature", reason="invalid_signature", request=request)
 
     try:
         payload = json.loads(_b64url_decode(payload_b64).decode("utf-8"))
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload") from exc
+        _raise_auth_401("Invalid token payload", reason="invalid_payload", request=request)
 
     exp = int(payload.get("exp") or 0)
     if exp <= int(time.time()):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
+        _raise_auth_401("Token expired", reason="expired", request=request)
     return payload
+
+
+def create_refresh_token() -> str:
+    return secrets.token_urlsafe(64)
+
+
+def hash_refresh_token(refresh_token: str) -> str:
+    return hashlib.sha256(str(refresh_token or "").encode("utf-8")).hexdigest()
+
+
+def _normalize_client_platform(value: str) -> str:
+    normalized = str(value or "").strip().lower()
+    if normalized in {CLIENT_PLATFORM_WEB, CLIENT_PLATFORM_MOBILE}:
+        return normalized
+    return CLIENT_PLATFORM_WEB
+
+
+def _resolve_client_platform(request: Optional[Request], explicit: Optional[str] = None) -> str:
+    if explicit:
+        return _normalize_client_platform(explicit)
+    if request is None:
+        return CLIENT_PLATFORM_WEB
+    header_value = str(request.headers.get("x-client-platform") or "").strip().lower()
+    if header_value in {"android", "ios", "react-native", CLIENT_PLATFORM_MOBILE}:
+        return CLIENT_PLATFORM_MOBILE
+    return _normalize_client_platform(header_value)
+
+
+def _client_user_agent(request: Optional[Request]) -> Optional[str]:
+    if request is None:
+        return None
+    value = str(request.headers.get("user-agent") or "").strip()
+    return value or None
+
+
+def _client_ip_address(request: Optional[Request]) -> Optional[str]:
+    if request is None:
+        return None
+    forwarded_for = str(request.headers.get("x-forwarded-for") or "").strip()
+    if forwarded_for:
+        first = forwarded_for.split(",")[0].strip()
+        if first:
+            return first
+    forwarded_real = str(request.headers.get("x-real-ip") or "").strip()
+    if forwarded_real:
+        return forwarded_real
+    if request.client and request.client.host:
+        return str(request.client.host)
+    return None
+
+
+def _cookie_secure(settings: Settings, request: Optional[Request]) -> bool:
+    if bool(settings.auth_cookie_secure):
+        return True
+    if request is None:
+        return False
+    forwarded_proto = str(request.headers.get("x-forwarded-proto") or "").strip().lower()
+    if forwarded_proto == "https":
+        return True
+    return str(request.url.scheme or "").lower() == "https"
+
+
+def _set_refresh_cookie(
+    response: Optional[Response],
+    *,
+    refresh_token: str,
+    settings: Settings,
+    request: Optional[Request],
+) -> None:
+    if response is None:
+        return
+    response.set_cookie(
+        key=str(settings.auth_refresh_cookie_name or "football_ai_refresh"),
+        value=str(refresh_token),
+        httponly=True,
+        secure=_cookie_secure(settings, request),
+        samesite=str(settings.auth_cookie_samesite or "lax").lower(),
+        domain=str(settings.auth_cookie_domain).strip() if settings.auth_cookie_domain else None,
+        max_age=_refresh_token_ttl_seconds(settings),
+        path="/",
+    )
+
+
+def _clear_refresh_cookie(
+    response: Optional[Response],
+    *,
+    settings: Settings,
+    request: Optional[Request],
+) -> None:
+    if response is None:
+        return
+    response.delete_cookie(
+        key=str(settings.auth_refresh_cookie_name or "football_ai_refresh"),
+        path="/",
+        domain=str(settings.auth_cookie_domain).strip() if settings.auth_cookie_domain else None,
+        secure=_cookie_secure(settings, request),
+        samesite=str(settings.auth_cookie_samesite or "lax").lower(),
+    )
 
 
 def _hash_email_code(settings: Settings, *, email: str, purpose: str, code: str) -> str:
@@ -565,6 +767,275 @@ def _consume_email_code(
     return _challenge_payload(row.get("payload_json"))
 
 
+def _is_session_active(row: Optional[dict[str, Any]], *, now_utc: Optional[datetime] = None) -> bool:
+    if not row:
+        return False
+    now_value = now_utc or _utc_now()
+    expires_at = row.get("expires_at")
+    if not isinstance(expires_at, datetime):
+        return False
+    revoked_at = row.get("revoked_at")
+    if revoked_at is not None:
+        return False
+    return expires_at > now_value
+
+
+def create_session(
+    conn,
+    *,
+    user_id: int,
+    refresh_token: str,
+    settings: Settings,
+    client_platform: str,
+    user_agent: Optional[str] = None,
+    ip_address: Optional[str] = None,
+    rotated_from_id: Optional[int] = None,
+) -> dict[str, Any]:
+    now_utc = _utc_now()
+    expires_at = now_utc + _session_ttl_delta(settings)
+    refresh_hash = hash_refresh_token(refresh_token)
+    row = conn.execute(
+        text(
+            f"""
+            INSERT INTO {AUTH_SESSIONS_TABLE} (
+                user_id,
+                refresh_token_hash,
+                client_platform,
+                user_agent,
+                ip_address,
+                expires_at,
+                rotated_from_id,
+                revoked_at,
+                created_at,
+                updated_at,
+                last_seen_at
+            ) VALUES (
+                :user_id,
+                :refresh_token_hash,
+                :client_platform,
+                :user_agent,
+                :ip_address,
+                :expires_at,
+                :rotated_from_id,
+                NULL,
+                :now_utc,
+                :now_utc,
+                :now_utc
+            )
+            RETURNING id, user_id, refresh_token_hash, client_platform, user_agent, ip_address, expires_at, rotated_from_id, revoked_at, created_at, updated_at, last_seen_at
+            """
+        ),
+        {
+            "user_id": int(user_id),
+            "refresh_token_hash": refresh_hash,
+            "client_platform": _normalize_client_platform(client_platform),
+            "user_agent": str(user_agent).strip() if user_agent else None,
+            "ip_address": str(ip_address).strip() if ip_address else None,
+            "expires_at": expires_at,
+            "rotated_from_id": int(rotated_from_id) if rotated_from_id else None,
+            "now_utc": now_utc,
+        },
+    ).mappings().first()
+    if not row:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Session create failed")
+    return dict(row)
+
+
+def get_session_by_id(conn, session_id: int) -> Optional[dict[str, Any]]:
+    row = conn.execute(
+        text(
+            f"""
+            SELECT id, user_id, refresh_token_hash, client_platform, user_agent, ip_address, expires_at, rotated_from_id, revoked_at, created_at, updated_at, last_seen_at
+            FROM {AUTH_SESSIONS_TABLE}
+            WHERE id = :session_id
+            LIMIT 1
+            """
+        ),
+        {"session_id": int(session_id)},
+    ).mappings().first()
+    return dict(row) if row else None
+
+
+def _get_session_by_refresh_hash(conn, refresh_hash: str) -> Optional[dict[str, Any]]:
+    row = conn.execute(
+        text(
+            f"""
+            SELECT id, user_id, refresh_token_hash, client_platform, user_agent, ip_address, expires_at, rotated_from_id, revoked_at, created_at, updated_at, last_seen_at
+            FROM {AUTH_SESSIONS_TABLE}
+            WHERE refresh_token_hash = :refresh_token_hash
+            LIMIT 1
+            """
+        ),
+        {"refresh_token_hash": str(refresh_hash)},
+    ).mappings().first()
+    return dict(row) if row else None
+
+
+def _touch_session(conn, session_id: int) -> None:
+    now_utc = _utc_now()
+    conn.execute(
+        text(
+            f"""
+            UPDATE {AUTH_SESSIONS_TABLE}
+            SET updated_at = :now_utc,
+                last_seen_at = :now_utc
+            WHERE id = :session_id
+            """
+        ),
+        {
+            "session_id": int(session_id),
+            "now_utc": now_utc,
+        },
+    )
+
+
+def revoke_session(conn, session_id: int) -> None:
+    now_utc = _utc_now()
+    conn.execute(
+        text(
+            f"""
+            UPDATE {AUTH_SESSIONS_TABLE}
+            SET revoked_at = :now_utc,
+                updated_at = :now_utc
+            WHERE id = :session_id
+              AND revoked_at IS NULL
+            """
+        ),
+        {
+            "session_id": int(session_id),
+            "now_utc": now_utc,
+        },
+    )
+
+
+def _revoke_user_sessions(conn, user_id: int) -> None:
+    now_utc = _utc_now()
+    conn.execute(
+        text(
+            f"""
+            UPDATE {AUTH_SESSIONS_TABLE}
+            SET revoked_at = :now_utc,
+                updated_at = :now_utc
+            WHERE user_id = :user_id
+              AND revoked_at IS NULL
+            """
+        ),
+        {
+            "user_id": int(user_id),
+            "now_utc": now_utc,
+        },
+    )
+
+
+def rotate_session(
+    conn,
+    *,
+    session_row: dict[str, Any],
+    refresh_token: str,
+    settings: Settings,
+    client_platform: str,
+    user_agent: Optional[str] = None,
+    ip_address: Optional[str] = None,
+) -> Optional[dict[str, Any]]:
+    if not _is_session_active(session_row):
+        return None
+    old_session_id = int(session_row["id"])
+    revoke_session(conn, old_session_id)
+    return create_session(
+        conn,
+        user_id=int(session_row["user_id"]),
+        refresh_token=refresh_token,
+        settings=settings,
+        client_platform=client_platform,
+        user_agent=user_agent,
+        ip_address=ip_address,
+        rotated_from_id=old_session_id,
+    )
+
+
+def _extract_session_id_from_payload(payload: dict[str, Any], *, request: Optional[Request] = None) -> int:
+    session_id = payload.get("sid")
+    try:
+        return int(session_id)
+    except (TypeError, ValueError):
+        _raise_auth_401("Invalid token session", reason="invalid_session", request=request)
+    return 0
+
+
+def _extract_user_id_from_payload(payload: dict[str, Any], *, request: Optional[Request] = None) -> int:
+    user_id = payload.get("sub")
+    try:
+        return int(user_id)
+    except (TypeError, ValueError):
+        _raise_auth_401("Invalid token subject", reason="invalid_subject", request=request)
+    return 0
+
+
+def _resolve_refresh_token(
+    refresh_request: Optional[RefreshRequest],
+    *,
+    request: Optional[Request],
+    settings: Settings,
+) -> str:
+    body_token = ""
+    if refresh_request is not None:
+        body_token = str(refresh_request.refresh_token or "").strip()
+    if body_token:
+        return body_token
+    if request is None:
+        return ""
+    cookie_name = str(settings.auth_refresh_cookie_name or "football_ai_refresh")
+    return str(request.cookies.get(cookie_name) or "").strip()
+
+
+def _session_response_payload(
+    *,
+    user: AuthUser,
+    session_id: int,
+    refresh_token: str,
+    settings: Settings,
+    client_platform: str,
+) -> LoginResponse:
+    access_token = create_access_token(user.id, settings, session_id=session_id)
+    return LoginResponse(
+        access_token=access_token,
+        token_type="bearer",
+        user=user,
+        expires_in_seconds=_access_token_ttl_seconds(settings),
+        refresh_token=refresh_token if client_platform == CLIENT_PLATFORM_MOBILE else None,
+    )
+
+
+def _create_login_session_payload(
+    conn,
+    *,
+    user: AuthUser,
+    settings: Settings,
+    request: Optional[Request],
+    response: Optional[Response],
+) -> LoginResponse:
+    client_platform = _resolve_client_platform(request)
+    refresh_token = create_refresh_token()
+    session = create_session(
+        conn,
+        user_id=user.id,
+        refresh_token=refresh_token,
+        settings=settings,
+        client_platform=client_platform,
+        user_agent=_client_user_agent(request),
+        ip_address=_client_ip_address(request),
+    )
+    if client_platform == CLIENT_PLATFORM_WEB:
+        _set_refresh_cookie(response, refresh_token=refresh_token, settings=settings, request=request)
+    return _session_response_payload(
+        user=user,
+        session_id=int(session["id"]),
+        refresh_token=refresh_token,
+        settings=settings,
+        client_platform=client_platform,
+    )
+
+
 def ensure_auth_tables(engine) -> None:
     with engine.begin() as conn:
         conn.execute(
@@ -718,6 +1189,42 @@ def ensure_auth_tables(engine) -> None:
                 """
             )
         )
+        conn.execute(
+            text(
+                f"""
+                CREATE TABLE IF NOT EXISTS {AUTH_SESSIONS_TABLE} (
+                    id BIGSERIAL PRIMARY KEY,
+                    user_id BIGINT NOT NULL REFERENCES {AUTH_USERS_TABLE}(id) ON DELETE CASCADE,
+                    refresh_token_hash TEXT NOT NULL,
+                    client_platform TEXT NOT NULL DEFAULT 'web',
+                    user_agent TEXT,
+                    ip_address TEXT,
+                    expires_at TIMESTAMPTZ NOT NULL,
+                    rotated_from_id BIGINT REFERENCES {AUTH_SESSIONS_TABLE}(id),
+                    revoked_at TIMESTAMPTZ,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+        )
+        conn.execute(
+            text(
+                f"""
+                CREATE INDEX IF NOT EXISTS idx_{AUTH_SESSIONS_TABLE}_user_active
+                ON {AUTH_SESSIONS_TABLE} (user_id, revoked_at, expires_at DESC)
+                """
+            )
+        )
+        conn.execute(
+            text(
+                f"""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_{AUTH_SESSIONS_TABLE}_refresh_hash
+                ON {AUTH_SESSIONS_TABLE} (refresh_token_hash)
+                """
+            )
+        )
 
         conn.execute(
             text(
@@ -779,8 +1286,7 @@ def _row_to_user(row: Any) -> AuthUser:
 
 
 def bootstrap_superadmin(settings: Settings) -> Optional[AuthUser]:
-    engine = create_engine(settings.db_url)
-    ensure_auth_tables(engine)
+    engine = get_engine(settings)
     with engine.begin() as conn:
         count = int(conn.execute(text(f"SELECT COUNT(*) FROM {AUTH_USERS_TABLE}")).scalar_one())
         if count > 0:
@@ -881,26 +1387,43 @@ def _fetch_user_by_google_sub(conn, google_sub: str) -> Optional[dict[str, Any]]
     return dict(row) if row else None
 
 
+def _extract_session_id_from_credentials(
+    credentials: Optional[HTTPAuthorizationCredentials],
+    *,
+    settings: Settings,
+    request: Optional[Request] = None,
+) -> Optional[int]:
+    if not credentials or not credentials.credentials:
+        return None
+    payload = decode_access_token(credentials.credentials, settings, request=request)
+    return _extract_session_id_from_payload(payload, request=request)
+
+
 def get_current_user(
+    request: Request = None,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(auth_scheme),
     settings: Settings = Depends(get_settings),
 ) -> AuthUser:
     if not credentials or not credentials.credentials:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+        _raise_auth_401("Authentication required", reason="missing_auth_header", request=request)
 
-    payload = decode_access_token(credentials.credentials, settings)
-    user_id = payload.get("sub")
-    try:
-        user_id_int = int(user_id)
-    except (TypeError, ValueError) as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token subject") from exc
+    payload = decode_access_token(credentials.credentials, settings, request=request)
+    user_id_int = _extract_user_id_from_payload(payload, request=request)
+    session_id = _extract_session_id_from_payload(payload, request=request)
 
-    engine = create_engine(settings.db_url)
-    ensure_auth_tables(engine)
-    with engine.connect() as conn:
+    engine = get_engine(settings)
+    with engine.begin() as conn:
+        session_row = get_session_by_id(conn, session_id)
+        if not session_row:
+            _raise_auth_401("Session invalidated", reason="session_not_found", request=request)
+        if int(session_row.get("user_id") or 0) != user_id_int:
+            _raise_auth_401("Session invalidated", reason="session_user_mismatch", request=request)
+        if not _is_session_active(session_row):
+            _raise_auth_401("Session invalidated", reason="session_inactive", request=request)
+        _touch_session(conn, session_id)
         user = _fetch_user_by_id(conn, user_id_int)
     if not user or not user.is_active:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
+        _raise_auth_401("User not found or inactive", reason="user_inactive", request=request)
     return user
 
 
@@ -932,8 +1455,7 @@ def resolve_credit_cost(settings: Settings, reason: str) -> int:
 
 
 def consume_ai_credits(settings: Settings, user_id: int, *, reason: str = "ai_commentary") -> int:
-    engine = create_engine(settings.db_url)
-    ensure_auth_tables(engine)
+    engine = get_engine(settings)
     credit_cost = resolve_credit_cost(settings, reason)
 
     with engine.begin() as conn:
@@ -1001,8 +1523,7 @@ def register_request(request: RegisterRequest, settings: Settings = Depends(get_
     if not email:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email bos olamaz.")
 
-    engine = create_engine(settings.db_url)
-    ensure_auth_tables(engine)
+    engine = get_engine(settings)
 
     try:
         with engine.begin() as conn:
@@ -1026,14 +1547,18 @@ def register_request(request: RegisterRequest, settings: Settings = Depends(get_
 
 
 @router.post("/register/verify", response_model=LoginResponse)
-def register_verify(request: RegisterVerifyRequest, settings: Settings = Depends(get_settings)):
+def register_verify(
+    request: RegisterVerifyRequest,
+    http_request: Request = None,
+    response: Response = None,
+    settings: Settings = Depends(get_settings),
+):
     email = _normalize_email(request.email)
     code = _normalize_email_code(request.code)
     if not email or not code:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email ve kod zorunludur.")
 
-    engine = create_engine(settings.db_url)
-    ensure_auth_tables(engine)
+    engine = get_engine(settings)
     now_utc = _utc_now()
 
     with engine.begin() as conn:
@@ -1167,9 +1692,13 @@ def register_verify(request: RegisterVerifyRequest, settings: Settings = Depends
                     },
                 )
             user = _row_to_user(inserted)
-
-    token = create_access_token(user.id, settings)
-    return LoginResponse(access_token=token, user=user)
+        return _create_login_session_payload(
+            conn,
+            user=user,
+            settings=settings,
+            request=http_request,
+            response=response,
+        )
 
 
 @router.post("/register", response_model=CodeDispatchResponse)
@@ -1178,35 +1707,51 @@ def register_legacy_alias(request: RegisterRequest, settings: Settings = Depends
 
 
 @router.post("/login", response_model=LoginResponse)
-def login(request: LoginRequest, settings: Settings = Depends(get_settings)):
+def login(
+    request: LoginRequest,
+    http_request: Request = None,
+    response: Response = None,
+    settings: Settings = Depends(get_settings),
+):
     email = _normalize_email(request.email)
     if not email:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email bos olamaz.")
 
-    engine = create_engine(settings.db_url)
-    ensure_auth_tables(engine)
-    with engine.connect() as conn:
+    engine = get_engine(settings)
+    with engine.begin() as conn:
         row = _fetch_login_row(conn, email)
-    if not row:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email veya sifre hatali")
-    if not bool(row.get("is_active")) or not bool(row.get("email_verified")):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Hesap aktif degil veya email dogrulanmamis")
-    if not verify_password(request.password, str(row.get("password_hash") or "")):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email veya sifre hatali")
+        if not row:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email veya sifre hatali")
+        if not bool(row.get("is_active")) or not bool(row.get("email_verified")):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Hesap aktif degil veya email dogrulanmamis",
+            )
+        if not verify_password(request.password, str(row.get("password_hash") or "")):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email veya sifre hatali")
 
-    user = _row_to_user(row)
-    token = create_access_token(user.id, settings)
-    return LoginResponse(access_token=token, user=user)
+        user = _row_to_user(row)
+        return _create_login_session_payload(
+            conn,
+            user=user,
+            settings=settings,
+            request=http_request,
+            response=response,
+        )
 
 
 @router.post("/login/google", response_model=LoginResponse)
-def login_google(request: GoogleLoginRequest, settings: Settings = Depends(get_settings)):
+def login_google(
+    request: GoogleLoginRequest,
+    http_request: Request = None,
+    response: Response = None,
+    settings: Settings = Depends(get_settings),
+):
     verified = _verify_google_id_token(request.id_token, settings=settings)
     email = verified["email"]
     google_sub = verified["sub"]
 
-    engine = create_engine(settings.db_url)
-    ensure_auth_tables(engine)
+    engine = get_engine(settings)
     now_utc = _utc_now()
 
     with engine.begin() as conn:
@@ -1215,8 +1760,13 @@ def login_google(request: GoogleLoginRequest, settings: Settings = Depends(get_s
             if not bool(linked_row.get("is_active")):
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Hesap aktif degil.")
             user = _row_to_user(linked_row)
-            token = create_access_token(user.id, settings)
-            return LoginResponse(access_token=token, user=user)
+            return _create_login_session_payload(
+                conn,
+                user=user,
+                settings=settings,
+                request=http_request,
+                response=response,
+            )
 
         existing = _fetch_login_row(conn, email)
         if existing:
@@ -1324,9 +1874,13 @@ def login_google(request: GoogleLoginRequest, settings: Settings = Depends(get_s
                     },
                 )
             user = _row_to_user(inserted)
-
-    token = create_access_token(user.id, settings)
-    return LoginResponse(access_token=token, user=user)
+        return _create_login_session_payload(
+            conn,
+            user=user,
+            settings=settings,
+            request=http_request,
+            response=response,
+        )
 
 
 @router.post("/login/code/request", response_model=CodeDispatchResponse)
@@ -1335,8 +1889,7 @@ def request_login_code(request: LoginWithCodeRequest, settings: Settings = Depen
     if not email:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email bos olamaz.")
 
-    engine = create_engine(settings.db_url)
-    ensure_auth_tables(engine)
+    engine = get_engine(settings)
 
     try:
         with engine.begin() as conn:
@@ -1361,14 +1914,18 @@ def request_login_code(request: LoginWithCodeRequest, settings: Settings = Depen
 
 
 @router.post("/login/code/verify", response_model=LoginResponse)
-def verify_login_code(request: VerifyLoginCodeRequest, settings: Settings = Depends(get_settings)):
+def verify_login_code(
+    request: VerifyLoginCodeRequest,
+    http_request: Request = None,
+    response: Response = None,
+    settings: Settings = Depends(get_settings),
+):
     email = _normalize_email(request.email)
     code = _normalize_email_code(request.code)
     if not email or not code:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email ve kod zorunludur.")
 
-    engine = create_engine(settings.db_url)
-    ensure_auth_tables(engine)
+    engine = get_engine(settings)
 
     with engine.begin() as conn:
         payload = _consume_email_code(
@@ -1385,10 +1942,14 @@ def verify_login_code(request: VerifyLoginCodeRequest, settings: Settings = Depe
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Kod gecersiz.")
         if not bool(row.get("is_active")) or not bool(row.get("email_verified")):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Hesap aktif degil veya email dogrulanmamis")
-
-    user = _row_to_user(row)
-    token = create_access_token(user.id, settings)
-    return LoginResponse(access_token=token, user=user)
+        user = _row_to_user(row)
+        return _create_login_session_payload(
+            conn,
+            user=user,
+            settings=settings,
+            request=http_request,
+            response=response,
+        )
 
 
 @router.post("/password/forgot/request", response_model=ForgotPasswordResponse)
@@ -1397,8 +1958,7 @@ def forgot_password_request(request: ForgotPasswordCodeRequest, settings: Settin
     if not email:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email bos olamaz.")
 
-    engine = create_engine(settings.db_url)
-    ensure_auth_tables(engine)
+    engine = get_engine(settings)
 
     try:
         with engine.begin() as conn:
@@ -1429,8 +1989,7 @@ def forgot_password_confirm(request: ForgotPasswordConfirmRequest, settings: Set
     if not email or not code:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email ve kod zorunludur.")
 
-    engine = create_engine(settings.db_url)
-    ensure_auth_tables(engine)
+    engine = get_engine(settings)
     now_utc = _utc_now()
 
     with engine.begin() as conn:
@@ -1464,6 +2023,7 @@ def forgot_password_confirm(request: ForgotPasswordConfirmRequest, settings: Set
                 "user_id": int(row["id"]),
             },
         )
+        _revoke_user_sessions(conn, int(row["id"]))
 
     return ForgotPasswordResponse(message="Sifre guncelleme islemi tamamlandi.")
 
@@ -1488,6 +2048,98 @@ def forgot_password_legacy_alias(request: LegacyForgotPasswordRequest, settings:
     return forgot_password_request(ForgotPasswordCodeRequest(email=email), settings)
 
 
+@router.post("/refresh", response_model=LoginResponse)
+def refresh_access_token(
+    refresh_request: RefreshRequest = None,
+    http_request: Request = None,
+    response: Response = None,
+    settings: Settings = Depends(get_settings),
+):
+    refresh_token = _resolve_refresh_token(refresh_request, request=http_request, settings=settings)
+    if not refresh_token:
+        _raise_auth_401("Authentication required", reason="refresh_missing", request=http_request)
+
+    engine = get_engine(settings)
+    with engine.begin() as conn:
+        session_row = _get_session_by_refresh_hash(conn, hash_refresh_token(refresh_token))
+        if not session_row:
+            _raise_auth_401("Session invalidated", reason="refresh_session_not_found", request=http_request)
+        if not _is_session_active(session_row):
+            _raise_auth_401("Session invalidated", reason="refresh_session_inactive", request=http_request)
+
+        user = _fetch_user_by_id(conn, int(session_row["user_id"]))
+        if not user or not user.is_active:
+            revoke_session(conn, int(session_row["id"]))
+            _raise_auth_401("User not found or inactive", reason="refresh_user_inactive", request=http_request)
+
+        client_platform = _resolve_client_platform(http_request, explicit=str(session_row.get("client_platform") or ""))
+        next_refresh_token = create_refresh_token()
+        rotated = rotate_session(
+            conn,
+            session_row=session_row,
+            refresh_token=next_refresh_token,
+            settings=settings,
+            client_platform=client_platform,
+            user_agent=_client_user_agent(http_request),
+            ip_address=_client_ip_address(http_request),
+        )
+        if not rotated:
+            _raise_auth_401("Session invalidated", reason="refresh_rotate_failed", request=http_request)
+
+        if client_platform == CLIENT_PLATFORM_WEB:
+            _set_refresh_cookie(response, refresh_token=next_refresh_token, settings=settings, request=http_request)
+
+        return _session_response_payload(
+            user=user,
+            session_id=int(rotated["id"]),
+            refresh_token=next_refresh_token,
+            settings=settings,
+            client_platform=client_platform,
+        )
+
+
+@router.post("/logout", response_model=LogoutResponse)
+def logout(
+    http_request: Request = None,
+    response: Response = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(auth_scheme),
+    settings: Settings = Depends(get_settings),
+) -> LogoutResponse:
+    engine = get_engine(settings)
+    refresh_token = _resolve_refresh_token(None, request=http_request, settings=settings)
+
+    session_id: Optional[int] = None
+    try:
+        session_id = _extract_session_id_from_credentials(credentials, settings=settings, request=http_request)
+    except HTTPException:
+        session_id = None
+
+    with engine.begin() as conn:
+        if session_id is not None:
+            revoke_session(conn, session_id)
+        elif refresh_token:
+            session_row = _get_session_by_refresh_hash(conn, hash_refresh_token(refresh_token))
+            if session_row:
+                revoke_session(conn, int(session_row["id"]))
+
+    _clear_refresh_cookie(response, settings=settings, request=http_request)
+    return LogoutResponse(ok=True)
+
+
+@router.post("/logout-all", response_model=LogoutResponse)
+def logout_all(
+    current_user: AuthUser = Depends(get_current_user),
+    http_request: Request = None,
+    response: Response = None,
+    settings: Settings = Depends(get_settings),
+) -> LogoutResponse:
+    engine = get_engine(settings)
+    with engine.begin() as conn:
+        _revoke_user_sessions(conn, int(current_user.id))
+    _clear_refresh_cookie(response, settings=settings, request=http_request)
+    return LogoutResponse(ok=True)
+
+
 @router.get("/avatar-options", response_model=AvatarOptionsResponse)
 def avatar_options(request: Request):
     return AvatarOptionsResponse(items=_avatar_option_payload(str(request.base_url)))
@@ -1503,8 +2155,7 @@ def update_my_avatar(
     if not avatar_key:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Gecersiz avatar secimi.")
 
-    engine = create_engine(settings.db_url)
-    ensure_auth_tables(engine)
+    engine = get_engine(settings)
     with engine.begin() as conn:
         row = conn.execute(
             text(
@@ -1538,8 +2189,7 @@ def set_advanced_mode(
     current_user: AuthUser = Depends(get_current_user),
     settings: Settings = Depends(get_settings),
 ) -> PreferencesResponse:
-    engine = create_engine(settings.db_url)
-    ensure_auth_tables(engine)
+    engine = get_engine(settings)
     with engine.begin() as conn:
         current_row = conn.execute(
             text(

@@ -122,3 +122,33 @@
     right: 12px;
   }
 }
+
+@media (max-width: 480px) {
+  .slider-showcase {
+    padding: 28px 0;
+  }
+
+  .slider-container {
+    height: 220px;
+    border-radius: 14px;
+  }
+
+  .slider-nav {
+    width: 38px;
+    height: 38px;
+  }
+
+  .slider-dots {
+    bottom: 14px;
+    gap: 8px;
+  }
+
+  .slider-dot {
+    width: 10px;
+    height: 10px;
+  }
+
+  .slider-dot.active {
+    width: 26px;
+  }
+}
